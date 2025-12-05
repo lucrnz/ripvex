@@ -153,38 +153,45 @@ func downloadWithProgress(writer io.Writer, reader io.Reader, total int64, outNa
 
 	for {
 		n, err := reader.Read(buf)
+
+		// Process bytes FIRST (even if err == io.EOF)
+		// Per io.Reader contract, Read() may return n > 0 AND io.EOF simultaneously
+		if n > 0 {
+			if hasher != nil {
+				hasher.Write(buf[:n])
+			}
+			n2, writeErr := writer.Write(buf[:n])
+			if writeErr != nil || n2 != n {
+				return nil, fmt.Errorf("error writing: %w", writeErr)
+			}
+			downloaded += int64(n)
+			if maxBytes > 0 && downloaded > maxBytes {
+				if outName != "-" {
+					if err := os.Remove(outName); err != nil && !os.IsNotExist(err) && !quiet {
+						fmt.Fprintf(os.Stderr, "\nWarning: failed to remove oversized file %s: %v\n", outName, err)
+					}
+				}
+				return nil, fmt.Errorf("download exceeded maximum size limit of %s", util.HumanReadableBytes(maxBytes))
+			}
+			if !quiet {
+				if time.Since(lastUpdate) >= updateInterval {
+					if total <= 0 {
+						fmt.Fprintf(os.Stderr, "\rDownloaded: %s...", util.HumanReadableBytes(downloaded))
+					} else {
+						percent := float64(downloaded) / float64(total) * 100
+						fmt.Fprintf(os.Stderr, "\rProgress: %.1f%% (%s/%s)", percent, util.HumanReadableBytes(downloaded), util.HumanReadableBytes(total))
+					}
+					lastUpdate = time.Now()
+				}
+			}
+		}
+
+		// THEN check for errors
 		if err != nil {
-			if err != io.EOF {
-				return nil, fmt.Errorf("error reading: %w", err)
+			if err == io.EOF {
+				break
 			}
-			break
-		}
-		if hasher != nil {
-			hasher.Write(buf[:n])
-		}
-		n2, err := writer.Write(buf[:n])
-		if err != nil || n2 != n {
-			return nil, fmt.Errorf("error writing: %w", err)
-		}
-		downloaded += int64(n)
-		if maxBytes > 0 && downloaded > maxBytes {
-			if outName != "-" {
-				if err := os.Remove(outName); err != nil && !os.IsNotExist(err) && !quiet {
-					fmt.Fprintf(os.Stderr, "\nWarning: failed to remove oversized file %s: %v\n", outName, err)
-				}
-			}
-			return nil, fmt.Errorf("download exceeded maximum size limit of %s", util.HumanReadableBytes(maxBytes))
-		}
-		if !quiet {
-			if time.Since(lastUpdate) >= updateInterval {
-				if total <= 0 {
-					fmt.Fprintf(os.Stderr, "\rDownloaded: %s...", util.HumanReadableBytes(downloaded))
-				} else {
-					percent := float64(downloaded) / float64(total) * 100
-					fmt.Fprintf(os.Stderr, "\rProgress: %.1f%% (%s/%s)", percent, util.HumanReadableBytes(downloaded), util.HumanReadableBytes(total))
-				}
-				lastUpdate = time.Now()
-			}
+			return nil, fmt.Errorf("error reading: %w", err)
 		}
 	}
 
@@ -207,14 +214,14 @@ func downloadWithProgress(writer io.Writer, reader io.Reader, total int64, outNa
 					}
 				}
 			}
-		if !quiet {
-			fmt.Fprintf(os.Stderr, "\n❌ error: invalid %s sum\n", hashName)
+			if !quiet {
+				fmt.Fprintf(os.Stderr, "\n❌ error: invalid %s sum\n", hashName)
+			}
+			return result, fmt.Errorf("hash mismatch: expected %s, got %s", expectedHash, computed)
 		}
-		return result, fmt.Errorf("hash mismatch: expected %s, got %s", expectedHash, computed)
-	}
-	if !quiet {
-		fmt.Fprintf(os.Stderr, "\n✅ %s sum hash matches\n", hashName)
-	}
+		if !quiet {
+			fmt.Fprintf(os.Stderr, "\n✅ %s sum hash matches\n", hashName)
+		}
 	}
 
 	// Final message
