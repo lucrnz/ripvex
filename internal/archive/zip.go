@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"simple-downloader/internal/util"
+	"github.com/lucrnz/ripvex/internal/util"
 )
 
 const maxSymlinkTarget = 4 * 1024

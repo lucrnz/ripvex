@@ -11,10 +11,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"simple-downloader/internal/archive"
-	"simple-downloader/internal/downloader"
-	"simple-downloader/internal/util"
-	"simple-downloader/internal/version"
+	"github.com/lucrnz/ripvex/internal/archive"
+	"github.com/lucrnz/ripvex/internal/downloader"
+	"github.com/lucrnz/ripvex/internal/util"
+	"github.com/lucrnz/ripvex/internal/version"
 )
 
 var (
@@ -34,12 +34,11 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "simple-downloader",
+	Use:   "ripvex",
 	Short: "Your Swiss-Army Knife for downloading files",
-	Long: fmt.Sprintf(`Simple Downloader
+	Long: fmt.Sprintf(`ripvex
 
-Downloads a file from URL, following redirects.
-Optionally extracts archives (zip, tar, tar.gz, tar.bz2, tar.xz, tar.zstd).
+Lightweight Go program for downloading files from URLs with optional hash integrity verification and archive extraction.
 
 Copyright (c) %d Luciano Hillcoat.
 This program is open-source and warranty-free, read more at: https://github.com/lucrnz/software-distillery/blob/main/LICENSE

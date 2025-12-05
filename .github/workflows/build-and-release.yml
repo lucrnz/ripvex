@@ -1,0 +1,221 @@
+name: Build and Release ripvex
+
+on:
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Create GitHub Release'
+        required: false
+        type: boolean
+        default: false
+      pre_release_build:
+        description: 'Create a pre-release build'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  prepare:
+    runs-on: tenki-standard-autoscale
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      version_prefix: ${{ steps.version.outputs.version_prefix }}
+      version_date: ${{ steps.version.outputs.version_date }}
+      commit_hash: ${{ steps.version.outputs.commit_hash }}
+    steps:
+      - name: Generate version
+        id: version
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          VERSION_DATE=$(date +%Y%m%d)
+          if [ "${{ inputs.pre_release_build }}" = "true" ]; then
+            VERSION_PREFIX="dev"
+          else
+            VERSION_PREFIX="prod"
+          fi
+          FULL_VERSION="${VERSION_PREFIX}-${VERSION_DATE}-${SHORT_SHA}"
+          echo "version_prefix=$VERSION_PREFIX" >> $GITHUB_OUTPUT
+          echo "version_date=$VERSION_DATE" >> $GITHUB_OUTPUT
+          echo "commit_hash=$SHORT_SHA" >> $GITHUB_OUTPUT
+          echo "version=$FULL_VERSION" >> $GITHUB_OUTPUT
+          echo "Generated version: $FULL_VERSION"
+
+  build:
+    needs: prepare
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Native builds
+          - { platform: "linux/amd64", runner: "tenki-standard-autoscale" }
+          - { platform: "linux/arm64", runner: "ubicloud-standard-8-arm" }
+          # Emulated builds via QEMU
+          - { platform: "linux/386", runner: "tenki-standard-autoscale" }
+          - { platform: "linux/ppc64le", runner: "tenki-standard-autoscale" }
+          - { platform: "linux/riscv64", runner: "tenki-standard-autoscale" }
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare platform pair
+        id: platform
+        run: |
+          platform=${{ matrix.platform }}
+          echo "pair=${platform//\//-}" >> $GITHUB_OUTPUT
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            VERSION_PREFIX=${{ needs.prepare.outputs.version_prefix }}
+            VERSION_DATE=${{ needs.prepare.outputs.version_date }}
+          outputs: type=image,name=ghcr.io/${{ github.repository }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ steps.platform.outputs.pair }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    needs: [prepare, build]
+    runs-on: tenki-standard-autoscale
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create manifest list and push
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create \
+            -t ghcr.io/${{ github.repository }}:${{ needs.prepare.outputs.version }} \
+            $(printf 'ghcr.io/${{ github.repository }}@sha256:%s ' *)
+
+      - name: Inspect image
+        run: |
+          docker buildx imagetools inspect ghcr.io/${{ github.repository }}:${{ needs.prepare.outputs.version }}
+
+  extract:
+    needs: [prepare, merge]
+    runs-on: tenki-standard-autoscale
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: "linux/amd64", arch: "amd64" }
+          - { platform: "linux/arm64", arch: "arm64" }
+          - { platform: "linux/386", arch: "386" }
+          - { platform: "linux/ppc64le", arch: "ppc64le" }
+          - { platform: "linux/riscv64", arch: "riscv64" }
+    steps:
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract binary from container
+        run: |
+          IMAGE="ghcr.io/${{ github.repository }}:${{ needs.prepare.outputs.version }}"
+          echo "Extracting binary for ${{ matrix.platform }} (${{ matrix.arch }})..."
+          docker pull --platform ${{ matrix.platform }} "$IMAGE"
+          docker create --name extract-${{ matrix.arch }} --platform ${{ matrix.platform }} "$IMAGE"
+          mkdir -p ripvex-${{ matrix.arch }}
+          docker cp extract-${{ matrix.arch }}:/ripvex ./ripvex-${{ matrix.arch }}/
+          tar -czvf ripvex-${{ needs.prepare.outputs.version }}-${{ matrix.arch }}.tar.gz ripvex-${{ matrix.arch }}
+          docker rm extract-${{ matrix.arch }}
+          rm -rf ripvex-${{ matrix.arch }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ripvex-${{ matrix.arch }}
+          path: ripvex-${{ needs.prepare.outputs.version }}-${{ matrix.arch }}.tar.gz
+          retention-days: 7
+
+  release:
+    needs: [prepare, extract]
+    runs-on: tenki-standard-autoscale
+    if: ${{ inputs.create_release == true }}
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: ripvex-*
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -la artifacts/
+
+      - name: Set release body
+        id: release-body
+        run: |
+          if [ "${{ inputs.pre_release_build }}" = "true" ]; then
+            echo "body=This is a pre-release build, you are adviced not to use this." >> $GITHUB_OUTPUT
+          else
+            echo "body=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ripvex-${{ needs.prepare.outputs.version }}
+          name: ripvex - ${{ needs.prepare.outputs.version }}
+          files: artifacts/*.tar.gz
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ inputs.pre_release_build }}
+          body: ${{ steps.release-body.outputs.body }}
+

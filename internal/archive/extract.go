@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"simple-downloader/internal/util"
+	"github.com/lucrnz/ripvex/internal/util"
 )
 
 // Extract extracts an archive based on its detected type

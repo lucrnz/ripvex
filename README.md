@@ -1,4 +1,4 @@
-# simple-downloader
+# ripvex
 A lightweight Go program for downloading files from URLs with optional hash integrity verification and archive extraction.
 Designed for simplicity and easy embedding in Docker containers or CI/CD pipelines.
 
@@ -23,10 +23,10 @@ This project is a work in progress, even though the developer makes the best eff
 
 ## Usage
 ```sh
-simple-downloader [flags]
+ripvex [flags]
 ```
 
-Run `simple-downloader --help` for full options.
+Run `ripvex --help` for full options.
 
 ### Flags
 
@@ -70,37 +70,37 @@ Run `simple-downloader --help` for full options.
 
 Download and extract a tarball:
 ```sh
-simple-downloader -U https://example.com/archive.tar.gz -x
+ripvex -U https://example.com/archive.tar.gz -x
 ```
 
 Download to a specific directory and extract:
 ```sh
-simple-downloader -U https://example.com/release.zip -C /opt/app -x
+ripvex -U https://example.com/release.zip -C /opt/app -x
 ```
 
 Download with hash verification and quiet mode:
 ```sh
-simple-downloader -U https://example.com/file.tar.xz -H sha256:abc123... -x -q
+ripvex -U https://example.com/file.tar.xz -H sha256:abc123... -x -q
 ```
 
 Download with SHA-512 hash verification:
 ```sh
-simple-downloader -U https://example.com/file.tar.xz -H sha512:def456... -x
+ripvex -U https://example.com/file.tar.xz -H sha512:def456... -x
 ```
 
 Download with an explicit limit (recommended for CI/CD):
 ```sh
-simple-downloader -U https://example.com/file.bin -M 2GiB
+ripvex -U https://example.com/file.bin -M 2GiB
 ```
 
 Keep the archive after extraction:
 ```sh
-simple-downloader -U https://example.com/data.tar.gz -x --remove-archive=false
+ripvex -U https://example.com/data.tar.gz -x --remove-archive=false
 ```
 
 Download to stdout with hash verification (buffered):
 ```sh
-simple-downloader -U https://example.com/file.bin -O - -H sha256:abc123... | process-file
+ripvex -U https://example.com/file.bin -O - -H sha256:abc123... | process-file
 ```
 
 ## Output Behavior
@@ -109,7 +109,7 @@ simple-downloader -U https://example.com/file.bin -O - -H sha256:abc123... | pro
 - **stdout**: Contains only the downloaded file data (when using `--output -`)
 - **stderr**: Contains all status messages (progress, hash verification results, final messages, archive extraction logs)
 
-This design ensures clean piping: `simple-downloader -U url -O - | other-tool` will only pass file data to the next command.
+This design ensures clean piping: `ripvex -U url -O - | other-tool` will only pass file data to the next command.
 
 ### Hash Algorithm Prefix
 Hash values must be prefixed with the algorithm name followed by a colon:

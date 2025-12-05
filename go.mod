@@ -1,4 +1,4 @@
-module simple-downloader
+module github.com/lucrnz/ripvex
 
 go 1.25.5
 

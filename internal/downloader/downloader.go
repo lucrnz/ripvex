@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"simple-downloader/internal/util"
+	"github.com/lucrnz/ripvex/internal/util"
 )
 
 // Options configures the download behavior
@@ -78,7 +78,7 @@ func Download(opts Options) (*Result, error) {
 
 	// Special handling: stdout + hash requires buffering to verify before output
 	if opts.Output == "-" && opts.ExpectedHash != "" {
-		tempFile, err := os.CreateTemp("", "simple-downloader-*")
+		tempFile, err := os.CreateTemp("", "ripvex-*")
 		if err != nil {
 			return nil, fmt.Errorf("error creating temp file: %w", err)
 		}
