@@ -120,7 +120,5 @@ Examples:
 - `sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`
 - `sha512:cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e`
 
-**Deprecation**: Providing a hash without a prefix (legacy format) will emit a deprecation warning and default to SHA-256. This behavior may be removed in a future version.
-
 ## License
-MIT License. See [LICENSE](https://github.com/lucrnz/software-distillery/blob/main/LICENSE) for details.
+MIT License. See [LICENSE](./LICENSE) for details.

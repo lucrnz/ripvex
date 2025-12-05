@@ -11,7 +11,7 @@ var (
 
 // UserAgent returns the default user agent string with embedded commit hash
 func UserAgent() string {
-	return "curl/" + CurlVersion + " ripvex/" + CommitHash
+	return "curl/" + CurlVersion + " ripvex/" + Print()
 }
 
 // Print returns the version information

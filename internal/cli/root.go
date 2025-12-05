@@ -36,13 +36,13 @@ var (
 var rootCmd = &cobra.Command{
 	Use:   "ripvex",
 	Short: "Your Swiss-Army Knife for downloading files",
-	Long: fmt.Sprintf(`ripvex
+	Long: `ripvex
 
 Lightweight Go program for downloading files from URLs with optional hash integrity verification and archive extraction.
 
-Copyright (c) %d Luciano Hillcoat.
-This program is open-source and warranty-free, read more at: https://github.com/lucrnz/software-distillery/blob/main/LICENSE
-`, time.Now().Year()),
+Copyright (c) 2025 Luciano Hillcoat.
+This program is open-source and warranty-free, read more at: https://github.com/lucrnz/ripvex/blob/main/LICENSE
+`,
 	RunE:    run,
 	Version: version.Print(),
 }
