@@ -17,7 +17,7 @@ import (
 func isTarContent(r io.Reader) (bool, io.Reader) {
 	peekBuf := make([]byte, 262)
 	n, err := io.ReadFull(r, peekBuf)
-	
+
 	// Handle the case where we read fewer than 262 bytes
 	if err != nil {
 		if err == io.EOF || err == io.ErrUnexpectedEOF {
@@ -120,5 +120,3 @@ func extractZstdTar(path string, opts ExtractOptions) error {
 
 	return extractTar(reader, opts)
 }
-
-

@@ -31,4 +31,3 @@ func IsPathSafe(path, destDir string) bool {
 
 	return true
 }
-

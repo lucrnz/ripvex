@@ -17,4 +17,3 @@ func HumanReadableBytes(bytes int64) string {
 	units := []string{"B", "KB", "MB", "GB"}
 	return fmt.Sprintf("%.1f %s", val, units[exp])
 }
-
