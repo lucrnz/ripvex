@@ -10,9 +10,9 @@ COMMIT_HASH ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 VERSION_PREFIX ?= dev
 VERSION_DATE ?= $(shell date +%Y%m%d)
 CURL_VERSION ?=
-LDFLAGS := -s -w -X ripvex/internal/version.CommitHash=$(COMMIT_HASH) -X ripvex/internal/version.VersionPrefix=$(VERSION_PREFIX) -X ripvex/internal/version.VersionDate=$(VERSION_DATE)
+LDFLAGS := -s -w -X github.com/lucrnz/ripvex/internal/version.CommitHash=$(COMMIT_HASH) -X github.com/lucrnz/ripvex/internal/version.VersionPrefix=$(VERSION_PREFIX) -X github.com/lucrnz/ripvex/internal/version.VersionDate=$(VERSION_DATE)
 ifneq ($(CURL_VERSION),)
-LDFLAGS += -X ripvex/internal/version.CurlVersion=$(CURL_VERSION)
+LDFLAGS += -X github.com/lucrnz/ripvex/internal/version.CurlVersion=$(CURL_VERSION)
 endif
 
 .PHONY: all build clean
