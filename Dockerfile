@@ -21,7 +21,7 @@ RUN CURL_VERSION="$(cat /curl-version.txt)" && \
   apt-get update && \
   apt-get install -y --no-install-recommends make && \
   rm -rf /var/lib/apt/lists/* && \
-  make build VERSION_PREFIX=$(VERSION_PREFIX) VERSION_DATE=$(VERSION_DATE) CURL_VERSION=$(CURL_VERSION)
+  make build VERSION_PREFIX=$VERSION_PREFIX VERSION_DATE=$VERSION_DATE CURL_VERSION=$CURL_VERSION
 
 FROM debian:trixie-slim AS certs
 ENV DEBIAN_FRONTEND=noninteractive
