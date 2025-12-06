@@ -3,6 +3,7 @@ package downloader
 import (
 	"crypto/sha256"
 	"crypto/sha512"
+	"crypto/tls"
 	"encoding/hex"
 	"fmt"
 	"hash"
@@ -18,16 +19,17 @@ import (
 
 // Options configures the download behavior
 type Options struct {
-	URL            string
-	Output         string // Output file path, or "-" for stdout
-	Quiet          bool
-	HashAlgorithm  string        // Hash algorithm name (e.g., "sha256", "sha512")
-	ExpectedHash   string        // Hex string to verify against (digest only, without algorithm prefix)
-	ConnectTimeout time.Duration // Maximum time for connection establishment
-	MaxTime        time.Duration // Maximum total time for the entire operation (0 = unlimited)
-	MaxRedirects   int           // Maximum number of redirects to follow
-	UserAgent      string        // User-Agent header to send with HTTP requests
-	MaxBytes       int64         // Maximum allowed download size in bytes (0 = unlimited)
+	URL              string
+	Output           string // Output file path, or "-" for stdout
+	Quiet            bool
+	HashAlgorithm    string        // Hash algorithm name (e.g., "sha256", "sha512")
+	ExpectedHash     string        // Hex string to verify against (digest only, without algorithm prefix)
+	ConnectTimeout   time.Duration // Maximum time for connection establishment
+	MaxTime          time.Duration // Maximum total time for the entire operation (0 = unlimited)
+	MaxRedirects     int           // Maximum number of redirects to follow
+	UserAgent        string        // User-Agent header to send with HTTP requests
+	MaxBytes         int64         // Maximum allowed download size in bytes (0 = unlimited)
+	AllowInsecureTLS bool          // Allow TLS 1.0/1.1 (insecure)
 }
 
 // Result contains the outcome of a download
@@ -38,10 +40,18 @@ type Result struct {
 
 // Download fetches a URL and writes it to the specified output
 func Download(opts Options) (*Result, error) {
+	tlsConfig := &tls.Config{
+		MinVersion: tls.VersionTLS12, // Secure default
+	}
+	if opts.AllowInsecureTLS {
+		tlsConfig.MinVersion = tls.VersionTLS10
+	}
+
 	transport := &http.Transport{
 		DialContext: (&net.Dialer{
 			Timeout: opts.ConnectTimeout,
 		}).DialContext,
+		TLSClientConfig: tlsConfig,
 	}
 
 	client := &http.Client{

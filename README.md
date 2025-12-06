@@ -49,6 +49,7 @@ Run `ripvex --help` for full options.
 | `--max-time` | `-m` | Maximum total time for the entire operation (0 = unlimited). | `0` |
 | `--max-redirs` | | Maximum number of redirects to follow. | `30` |
 | `--max-bytes` | `-M` | Maximum bytes to download (supports `k/K/KB/KiB`, `m/M/MB/MiB`, `g/G/GB/GiB`). | `4GiB` |
+| `--allow-insecure-tls` | | Allow insecure TLS versions (1.0/1.1) with known vulnerabilities. | `false` |
 
 #### Archive Extractor
 
@@ -121,6 +122,22 @@ Hash values must be prefixed with the algorithm name followed by a colon:
 Examples:
 - `sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`
 - `sha512:cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e`
+
+## TLS Security
+
+By default, ripvex enforces TLS 1.2 as the minimum version for HTTPS connections. The TLS handshake will negotiate the highest mutually supported version (preferring TLS 1.3 when available, falling back to TLS 1.2).
+
+TLS 1.0 and 1.1 have known security vulnerabilities (BEAST, POODLE, etc.) and are deprecated by major browsers and security standards.
+
+### Connecting to Legacy Servers
+
+If you need to connect to a server that only supports TLS 1.0/1.1:
+
+```sh
+ripvex -U https://legacy-server.example.com/file.bin --allow-insecure-tls
+```
+
+**Warning**: Only use `--allow-insecure-tls` when absolutely necessary and you understand the security implications.
 
 ## License
 MIT License. See [LICENSE](./LICENSE) for details.

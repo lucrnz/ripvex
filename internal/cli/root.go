@@ -34,6 +34,7 @@ var (
 	userAgent          string
 	maxBytesStr        string
 	extractMaxBytesStr string
+	allowInsecureTLS   bool
 )
 
 var rootCmd = &cobra.Command{
@@ -66,6 +67,7 @@ func init() {
 	rootCmd.Flags().StringVar(&userAgent, "user-agent", version.UserAgent(), "User-Agent header to send with HTTP requests")
 	rootCmd.Flags().StringVarP(&maxBytesStr, "max-bytes", "M", "4GiB", "Maximum bytes to download (e.g., \"4GiB\", \"512MB\")")
 	rootCmd.Flags().StringVar(&extractMaxBytesStr, "extract-max-bytes", "8GiB", "Maximum total bytes to extract from archive (e.g., \"8GiB\")")
+	rootCmd.Flags().BoolVar(&allowInsecureTLS, "allow-insecure-tls", false, "Allow insecure TLS versions (1.0/1.1) with known vulnerabilities")
 
 	rootCmd.MarkFlagRequired("url")
 
@@ -166,16 +168,17 @@ func run(cmd *cobra.Command, args []string) error {
 
 	// Perform download
 	opts := downloader.Options{
-		URL:            urlStr,
-		Output:         output,
-		Quiet:          quiet,
-		HashAlgorithm:  hashAlgo,
-		ExpectedHash:   hashDigest,
-		ConnectTimeout: connectTimeout,
-		MaxTime:        maxTime,
-		MaxRedirects:   maxRedirects,
-		UserAgent:      userAgent,
-		MaxBytes:       maxBytes,
+		URL:              urlStr,
+		Output:           output,
+		Quiet:            quiet,
+		HashAlgorithm:    hashAlgo,
+		ExpectedHash:     hashDigest,
+		ConnectTimeout:   connectTimeout,
+		MaxTime:          maxTime,
+		MaxRedirects:     maxRedirects,
+		UserAgent:        userAgent,
+		MaxBytes:         maxBytes,
+		AllowInsecureTLS: allowInsecureTLS,
 	}
 
 	_, err = downloader.Download(opts)
