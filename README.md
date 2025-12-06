@@ -15,7 +15,7 @@ This project is a work in progress, even though the developer makes the best eff
 - **Archive Extraction**: Extract downloaded archives automatically. Supports zip, tar, tar.gz, tar.bz2, tar.xz, and tar.zstd formats.
 - **Magic Byte Detection**: Archive format detection uses file magic bytes, not extensions, for reliable format identification.
 - **Zip Slip Protection**: Production-ready security against path traversal attacks in archives.
-- **Redirect Handling**: Automatically follows HTTP redirects.
+- **Redirect Handling**: Automatically follows HTTP redirects up to a configurable limit (default: 30).
 - **Quiet Mode**: Suppress all non-error output for scripts or logs.
 - **Flexible Output**: Write to file (default: URL basename) or stdout (`--output -`).
 - **Clean Piping**: All status messages (progress, hash verification, final messages) are written to stderr, keeping stdout clean for data piping.
@@ -46,6 +46,7 @@ Run `ripvex --help` for full options.
 | `--hash` | `-H` | Expected hash with algorithm prefix (e.g., `sha256:xxxxx...` or `sha512:xxxxx...`). Supported algorithms: `sha256` (64 hex chars), `sha512` (128 hex chars). Case-insensitive. Verifies file integrity; exits 1 on mismatch. In quiet mode, no success message. When used with `--output -`, the file is buffered in memory and only written to stdout after successful verification. Legacy format (hash without prefix) is deprecated and will emit a warning, defaulting to SHA-256. | None |
 | `--connect-timeout` | | Maximum time for connection establishment. | `300s` |
 | `--max-time` | `-m` | Maximum total time for the entire operation (0 = unlimited). | `0` |
+| `--max-redirs` | | Maximum number of redirects to follow. | `30` |
 | `--max-bytes` | `-M` | Maximum bytes to download (supports `k/K/KB/KiB`, `m/M/MB/MiB`, `g/G/GB/GiB`). | `4GiB` |
 
 #### Archive Extractor

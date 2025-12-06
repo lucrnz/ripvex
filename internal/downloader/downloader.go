@@ -25,6 +25,7 @@ type Options struct {
 	ExpectedHash   string        // Hex string to verify against (digest only, without algorithm prefix)
 	ConnectTimeout time.Duration // Maximum time for connection establishment
 	MaxTime        time.Duration // Maximum total time for the entire operation (0 = unlimited)
+	MaxRedirects   int           // Maximum number of redirects to follow
 	UserAgent      string        // User-Agent header to send with HTTP requests
 	MaxBytes       int64         // Maximum allowed download size in bytes (0 = unlimited)
 }
@@ -49,6 +50,16 @@ func Download(opts Options) (*Result, error) {
 
 	if opts.MaxTime > 0 {
 		client.Timeout = opts.MaxTime
+	}
+
+	// Configure redirect handling
+	if opts.MaxRedirects >= 0 {
+		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			if len(via) > opts.MaxRedirects {
+				return fmt.Errorf("stopped after %d redirects", opts.MaxRedirects)
+			}
+			return nil
+		}
 	}
 
 	req, err := http.NewRequest("GET", opts.URL, nil)

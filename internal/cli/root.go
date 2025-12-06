@@ -28,6 +28,7 @@ var (
 	stripComponents    int
 	connectTimeout     time.Duration
 	maxTime            time.Duration
+	maxRedirects       int
 	userAgent          string
 	maxBytesStr        string
 	extractMaxBytesStr string
@@ -58,18 +59,35 @@ func init() {
 	rootCmd.Flags().IntVar(&stripComponents, "extract-strip-components", 0, "Strip N leading components from file names during extraction")
 	rootCmd.Flags().DurationVar(&connectTimeout, "connect-timeout", 300*time.Second, "Maximum time for connection establishment")
 	rootCmd.Flags().DurationVarP(&maxTime, "max-time", "m", 0, "Maximum total time for the entire operation (0 = unlimited)")
+	rootCmd.Flags().IntVar(&maxRedirects, "max-redirs", 30, "Maximum number of redirects to follow")
 	rootCmd.Flags().StringVar(&userAgent, "user-agent", version.UserAgent(), "User-Agent header to send with HTTP requests")
 	rootCmd.Flags().StringVarP(&maxBytesStr, "max-bytes", "M", "4GiB", "Maximum bytes to download (e.g., \"4GiB\", \"512MB\")")
 	rootCmd.Flags().StringVar(&extractMaxBytesStr, "extract-max-bytes", "8GiB", "Maximum total bytes to extract from archive (e.g., \"8GiB\")")
 
 	rootCmd.MarkFlagRequired("url")
+
+	// Silence usage output for runtime errors, but show it for flag errors
+	// SilenceErrors is true so we can control error output format in main()
+	rootCmd.SilenceUsage = true
+	rootCmd.SilenceErrors = true
+
+	// Show usage only when there's a flag parsing error
+	rootCmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
+		_ = cmd.Usage()
+		return err
+	})
 }
 
 // Execute runs the root command
-func Execute() {
+func Execute() error {
 	if err := rootCmd.Execute(); err != nil {
-		os.Exit(1)
+		// Show usage for required flag errors (not caught by SetFlagErrorFunc)
+		if strings.Contains(err.Error(), "required flag") {
+			_ = rootCmd.Usage()
+		}
+		return err
 	}
+	return nil
 }
 
 func run(cmd *cobra.Command, args []string) error {
@@ -121,6 +139,11 @@ func run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Validate max-redirs
+	if maxRedirects < 0 {
+		return fmt.Errorf("--max-redirs must be non-negative, got %d", maxRedirects)
+	}
+
 	// Perform download
 	opts := downloader.Options{
 		URL:            urlStr,
@@ -130,6 +153,7 @@ func run(cmd *cobra.Command, args []string) error {
 		ExpectedHash:   hashDigest,
 		ConnectTimeout: connectTimeout,
 		MaxTime:        maxTime,
+		MaxRedirects:   maxRedirects,
 		UserAgent:      userAgent,
 		MaxBytes:       maxBytes,
 	}

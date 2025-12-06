@@ -1,8 +1,15 @@
 package main
 
-import "github.com/lucrnz/ripvex/internal/cli"
+import (
+	"fmt"
+	"os"
+
+	"github.com/lucrnz/ripvex/internal/cli"
+)
 
 func main() {
-	cli.Execute()
+	if err := cli.Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }
-
