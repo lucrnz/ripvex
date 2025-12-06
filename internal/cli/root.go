@@ -133,7 +133,10 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 	urlStr = parsedURL.String()
 
-	// Determine output filename
+	// Track whether --output was explicitly set
+	outputExplicit := output != ""
+
+	// Determine output filename (fallback if not explicitly set)
 	if output == "" {
 		parsedURL := urlStr
 		if idx := strings.LastIndex(parsedURL, "/"); idx != -1 {
@@ -237,6 +240,7 @@ func run(cmd *cobra.Command, args []string) error {
 	opts := downloader.Options{
 		URL:              urlStr,
 		Output:           output,
+		OutputExplicit:   outputExplicit,
 		Quiet:            quiet,
 		HashAlgorithm:    hashAlgo,
 		ExpectedHash:     hashDigest,
@@ -249,9 +253,16 @@ func run(cmd *cobra.Command, args []string) error {
 		Headers:          headersMap,
 	}
 
-	_, err = downloader.Download(opts)
+	result, err := downloader.Download(opts)
 	if err != nil {
 		return err
+	}
+
+	// Use the final output filename from the download result (may have been updated by Content-Disposition)
+	finalOutputFile := result.OutputFile
+	if finalOutputFile == "" {
+		// Fallback to original output if result doesn't have OutputFile set (shouldn't happen, but safety)
+		finalOutputFile = output
 	}
 
 	// Extract archive if requested
@@ -260,7 +271,7 @@ func run(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(os.Stderr, "Detecting archive type...\n")
 		}
 
-		archiveType, err := archive.Detect(output)
+		archiveType, err := archive.Detect(finalOutputFile)
 		if err != nil {
 			return fmt.Errorf("error detecting archive type: %w", err)
 		}
@@ -278,7 +289,7 @@ func run(cmd *cobra.Command, args []string) error {
 			StripComponents: stripComponents,
 			MaxBytes:        extractMaxBytes,
 		}
-		if err := archive.Extract(output, archiveType, opts); err != nil {
+		if err := archive.Extract(finalOutputFile, archiveType, opts); err != nil {
 			return fmt.Errorf("error extracting archive: %w", err)
 		}
 
@@ -287,10 +298,10 @@ func run(cmd *cobra.Command, args []string) error {
 		}
 
 		if removeArchive {
-			if err := os.Remove(output); err != nil {
+			if err := os.Remove(finalOutputFile); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to remove archive file: %v\n", err)
 			} else if !quiet {
-				fmt.Fprintf(os.Stderr, "Removed archive file: %s\n", output)
+				fmt.Fprintf(os.Stderr, "Removed archive file: %s\n", finalOutputFile)
 			}
 		}
 	}

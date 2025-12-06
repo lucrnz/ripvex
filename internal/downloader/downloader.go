@@ -8,9 +8,12 @@ import (
 	"fmt"
 	"hash"
 	"io"
+	"mime"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -21,6 +24,7 @@ import (
 type Options struct {
 	URL              string
 	Output           string // Output file path, or "-" for stdout
+	OutputExplicit   bool   // Whether --output was explicitly set by user
 	Quiet            bool
 	HashAlgorithm    string            // Hash algorithm name (e.g., "sha256", "sha512")
 	ExpectedHash     string            // Hex string to verify against (digest only, without algorithm prefix)
@@ -37,6 +41,7 @@ type Options struct {
 type Result struct {
 	BytesDownloaded int64
 	HashMatched     bool
+	OutputFile      string // Final output filename used (for archive extraction)
 }
 
 // Download fetches a URL and writes it to the specified output
@@ -98,6 +103,18 @@ func Download(opts Options) (*Result, error) {
 		return nil, fmt.Errorf("HTTP %s", resp.Status)
 	}
 
+	// Extract filename from Content-Disposition header if output was not explicitly set
+	finalOutput := opts.Output
+	if !opts.OutputExplicit && opts.Output != "-" {
+		contentDisposition := resp.Header.Get("Content-Disposition")
+		if contentDisposition != "" {
+			cdFilename := extractFilenameFromContentDisposition(contentDisposition)
+			if cdFilename != "" {
+				finalOutput = cdFilename
+			}
+		}
+	}
+
 	// Enforce maximum download size by limiting the reader.
 	var bodyReader io.Reader = resp.Body
 	if opts.MaxBytes > 0 {
@@ -105,7 +122,7 @@ func Download(opts Options) (*Result, error) {
 	}
 
 	// Special handling: stdout + hash requires buffering to verify before output
-	if opts.Output == "-" && opts.ExpectedHash != "" {
+	if finalOutput == "-" && opts.ExpectedHash != "" {
 		tempFile, err := os.CreateTemp("", "ripvex-*")
 		if err != nil {
 			return nil, fmt.Errorf("error creating temp file: %w", err)
@@ -113,11 +130,12 @@ func Download(opts Options) (*Result, error) {
 		tempPath := tempFile.Name()
 		defer os.Remove(tempPath)
 
-		result, err := downloadWithProgress(tempFile, bodyReader, resp.ContentLength, opts.Output, opts.Quiet, opts.HashAlgorithm, opts.ExpectedHash, opts.MaxBytes)
+		result, err := downloadWithProgress(tempFile, bodyReader, resp.ContentLength, finalOutput, opts.Quiet, opts.HashAlgorithm, opts.ExpectedHash, opts.MaxBytes)
 		if err := tempFile.Close(); err != nil {
 			return nil, fmt.Errorf("error closing temp file: %w", err)
 		}
 		if err != nil {
+			result.OutputFile = finalOutput
 			return result, err
 		}
 
@@ -131,25 +149,80 @@ func Download(opts Options) (*Result, error) {
 		if _, err := io.Copy(os.Stdout, tempFile); err != nil {
 			return nil, fmt.Errorf("error writing to stdout: %w", err)
 		}
+		result.OutputFile = finalOutput
 		return result, nil
 	}
 
 	// Standard flow: file output or stdout without hash (stream directly)
 	var writer io.Writer
-	if opts.Output == "-" {
+	if finalOutput == "-" {
 		writer = os.Stdout
-		return downloadWithProgress(writer, bodyReader, resp.ContentLength, opts.Output, opts.Quiet, opts.HashAlgorithm, opts.ExpectedHash, opts.MaxBytes)
+		result, err := downloadWithProgress(writer, bodyReader, resp.ContentLength, finalOutput, opts.Quiet, opts.HashAlgorithm, opts.ExpectedHash, opts.MaxBytes)
+		if result != nil {
+			result.OutputFile = finalOutput
+		}
+		return result, err
 	}
 
-	file, err := os.Create(opts.Output)
+	file, err := os.Create(finalOutput)
 	if err != nil {
 		return nil, fmt.Errorf("error creating file: %w", err)
 	}
-	result, err := downloadWithProgress(file, bodyReader, resp.ContentLength, opts.Output, opts.Quiet, opts.HashAlgorithm, opts.ExpectedHash, opts.MaxBytes)
+	result, err := downloadWithProgress(file, bodyReader, resp.ContentLength, finalOutput, opts.Quiet, opts.HashAlgorithm, opts.ExpectedHash, opts.MaxBytes)
+	if result != nil {
+		result.OutputFile = finalOutput
+	}
 	if closeErr := file.Close(); closeErr != nil && err == nil {
 		return result, fmt.Errorf("error closing output file: %w", closeErr)
 	}
 	return result, err
+}
+
+// extractFilenameFromContentDisposition extracts the filename from Content-Disposition header
+// Returns empty string if header is missing or invalid
+func extractFilenameFromContentDisposition(header string) string {
+	if header == "" {
+		return ""
+	}
+
+	// Parse the Content-Disposition header
+	_, params, err := mime.ParseMediaType(header)
+	if err != nil {
+		return ""
+	}
+
+	// Try filename* first (RFC 5987, preferred)
+	if filenameStar, ok := params["filename*"]; ok {
+		// Handle RFC 5987 encoding: charset'lang'value or charset''value
+		// Format: charset'lang'encoded-value where value is percent-encoded
+		parts := strings.SplitN(filenameStar, "'", 3)
+		if len(parts) >= 2 {
+			// Get the last part (encoded value), handling both 2-part and 3-part formats
+			encodedValue := parts[len(parts)-1]
+			// Decode percent-encoded value (RFC 3986 encoding)
+			decoded, err := url.QueryUnescape(encodedValue)
+			if err == nil && decoded != "" {
+				// Validate filename doesn't contain path traversal
+				base := filepath.Base(decoded)
+				if base != "" && base != "." && base != ".." && !strings.Contains(base, string(filepath.Separator)) {
+					return base
+				}
+			}
+		}
+	}
+
+	// Fall back to filename parameter
+	if filename, ok := params["filename"]; ok && filename != "" {
+		// Remove quotes if present
+		filename = strings.Trim(filename, `"`)
+		// Validate filename doesn't contain path traversal
+		base := filepath.Base(filename)
+		if base != "" && base != "." && base != ".." && !strings.Contains(base, string(filepath.Separator)) {
+			return base
+		}
+	}
+
+	return ""
 }
 
 // newHashFromAlgorithm creates a hash.Hash instance for the given algorithm name
