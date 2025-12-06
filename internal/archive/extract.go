@@ -102,11 +102,15 @@ func extractTar(r io.Reader, opts ExtractOptions) error {
 			}
 
 			written, err := io.Copy(outFile, tr)
+			if closeErr := outFile.Close(); closeErr != nil {
+				if err == nil {
+					err = fmt.Errorf("failed to close file: %w", closeErr)
+				}
+				return err
+			}
 			if err != nil {
-				outFile.Close()
 				return fmt.Errorf("failed to write file: %w", err)
 			}
-			outFile.Close()
 			extracted += written
 			if opts.MaxBytes > 0 && extracted > opts.MaxBytes {
 				os.Remove(destPath)

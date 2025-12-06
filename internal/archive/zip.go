@@ -120,9 +120,13 @@ func extractZipFile(f *zip.File, destDir string, opts ExtractOptions, extracted 
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
-	defer outFile.Close()
 
 	written, err := io.Copy(outFile, rc)
+	if closeErr := outFile.Close(); closeErr != nil {
+		if err == nil {
+			return fmt.Errorf("failed to close file: %w", closeErr)
+		}
+	}
 	if err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}

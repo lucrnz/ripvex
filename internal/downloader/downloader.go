@@ -97,7 +97,9 @@ func Download(opts Options) (*Result, error) {
 		defer os.Remove(tempPath)
 
 		result, err := downloadWithProgress(tempFile, bodyReader, resp.ContentLength, opts.Output, opts.Quiet, opts.HashAlgorithm, opts.ExpectedHash, opts.MaxBytes)
-		tempFile.Close()
+		if err := tempFile.Close(); err != nil {
+			return nil, fmt.Errorf("error closing temp file: %w", err)
+		}
 		if err != nil {
 			return result, err
 		}
@@ -119,16 +121,18 @@ func Download(opts Options) (*Result, error) {
 	var writer io.Writer
 	if opts.Output == "-" {
 		writer = os.Stdout
-	} else {
-		file, err := os.Create(opts.Output)
-		if err != nil {
-			return nil, fmt.Errorf("error creating file: %w", err)
-		}
-		defer file.Close()
-		writer = file
+		return downloadWithProgress(writer, bodyReader, resp.ContentLength, opts.Output, opts.Quiet, opts.HashAlgorithm, opts.ExpectedHash, opts.MaxBytes)
 	}
 
-	return downloadWithProgress(writer, bodyReader, resp.ContentLength, opts.Output, opts.Quiet, opts.HashAlgorithm, opts.ExpectedHash, opts.MaxBytes)
+	file, err := os.Create(opts.Output)
+	if err != nil {
+		return nil, fmt.Errorf("error creating file: %w", err)
+	}
+	result, err := downloadWithProgress(file, bodyReader, resp.ContentLength, opts.Output, opts.Quiet, opts.HashAlgorithm, opts.ExpectedHash, opts.MaxBytes)
+	if closeErr := file.Close(); closeErr != nil && err == nil {
+		return result, fmt.Errorf("error closing output file: %w", closeErr)
+	}
+	return result, err
 }
 
 // newHashFromAlgorithm creates a hash.Hash instance for the given algorithm name
