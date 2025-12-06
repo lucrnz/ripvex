@@ -22,14 +22,15 @@ type Options struct {
 	URL              string
 	Output           string // Output file path, or "-" for stdout
 	Quiet            bool
-	HashAlgorithm    string        // Hash algorithm name (e.g., "sha256", "sha512")
-	ExpectedHash     string        // Hex string to verify against (digest only, without algorithm prefix)
-	ConnectTimeout   time.Duration // Maximum time for connection establishment
-	MaxTime          time.Duration // Maximum total time for the entire operation (0 = unlimited)
-	MaxRedirects     int           // Maximum number of redirects to follow
-	UserAgent        string        // User-Agent header to send with HTTP requests
-	MaxBytes         int64         // Maximum allowed download size in bytes (0 = unlimited)
-	AllowInsecureTLS bool          // Allow TLS 1.0/1.1 (insecure)
+	HashAlgorithm    string            // Hash algorithm name (e.g., "sha256", "sha512")
+	ExpectedHash     string            // Hex string to verify against (digest only, without algorithm prefix)
+	ConnectTimeout   time.Duration     // Maximum time for connection establishment
+	MaxTime          time.Duration     // Maximum total time for the entire operation (0 = unlimited)
+	MaxRedirects     int               // Maximum number of redirects to follow
+	UserAgent        string            // User-Agent header to send with HTTP requests
+	MaxBytes         int64             // Maximum allowed download size in bytes (0 = unlimited)
+	AllowInsecureTLS bool              // Allow TLS 1.0/1.1 (insecure)
+	Headers          map[string]string // Custom HTTP headers to send
 }
 
 // Result contains the outcome of a download
@@ -80,6 +81,11 @@ func Download(opts Options) (*Result, error) {
 
 	if opts.UserAgent != "" {
 		req.Header.Set("User-Agent", opts.UserAgent)
+	}
+
+	// Apply custom headers
+	for key, value := range opts.Headers {
+		req.Header.Set(key, value)
 	}
 
 	resp, err := client.Do(req)

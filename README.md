@@ -60,6 +60,19 @@ Run `ripvex --help` for full options.
 | `--extract-strip-components` | | Strip N leading components from file names during extraction. | `0` |
 | `--extract-max-bytes` | | Maximum total bytes to extract from the archive. Supports the same units as `--max-bytes`. | `8GiB` |
 
+#### Authorization Flags
+
+| Flag | Short | Description | Default |
+|------|-------|-------------|---------|
+| `--header` | | Custom header in "Key: Value" format. Can be specified multiple times. | None |
+| `--auth` | `-A` | Set Authorization header to the provided value | None |
+| `--auth-bearer` | `-B` | Set Authorization header to "Bearer {value}" | None |
+| `--auth-basic-user` | | Username for HTTP Basic authentication (requires `--auth-basic-pass`) | None |
+| `--auth-basic-pass` | | Password for HTTP Basic authentication (requires `--auth-basic-user`) | None |
+| `--auth-basic` | | Custom base64 value for Basic auth (cannot be used with `--auth-basic-user/pass`) | None |
+
+**Note**: Only one authentication method (`--auth`, `--auth-bearer`, `--auth-basic-user/pass`, or `--auth-basic`) can be specified at a time. They are mutually exclusive.
+
 ### Supported Archive Formats
 
 - ZIP
@@ -104,6 +117,26 @@ ripvex -U https://example.com/data.tar.gz -x --remove-archive=false
 Download to stdout with hash verification (buffered):
 ```sh
 ripvex -U https://example.com/file.bin -O - -H sha256:abc123... | process-file
+```
+
+Download with custom header:
+```sh
+ripvex -U https://example.com/file.tar.gz --header "X-Custom: value" -x
+```
+
+Download with Bearer token authentication:
+```sh
+ripvex -U https://registry.example.com/file.tar.gz -B "$TOKEN" -x
+```
+
+Download with Basic authentication using credentials:
+```sh
+ripvex -U https://private.example.com/file.tar.gz --auth-basic-user myuser --auth-basic-pass mypass -x
+```
+
+Download with Basic authentication using pre-encoded value:
+```sh
+ripvex -U https://private.example.com/file.tar.gz --auth-basic "dXNlcjpwYXNz" -x
 ```
 
 ## Output Behavior

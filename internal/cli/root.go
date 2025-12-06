@@ -3,6 +3,7 @@ package cli
 import (
 	"crypto/sha256"
 	"crypto/sha512"
+	"encoding/base64"
 	"fmt"
 	"hash"
 	"net/url"
@@ -35,6 +36,12 @@ var (
 	maxBytesStr        string
 	extractMaxBytesStr string
 	allowInsecureTLS   bool
+	headers            []string
+	auth               string
+	authBearer         string
+	authBasicUser      string
+	authBasicPass      string
+	authBasic          string
 )
 
 var rootCmd = &cobra.Command{
@@ -68,6 +75,12 @@ func init() {
 	rootCmd.Flags().StringVarP(&maxBytesStr, "max-bytes", "M", "4GiB", "Maximum bytes to download (e.g., \"4GiB\", \"512MB\")")
 	rootCmd.Flags().StringVar(&extractMaxBytesStr, "extract-max-bytes", "8GiB", "Maximum total bytes to extract from archive (e.g., \"8GiB\")")
 	rootCmd.Flags().BoolVar(&allowInsecureTLS, "allow-insecure-tls", false, "Allow insecure TLS versions (1.0/1.1) with known vulnerabilities")
+	rootCmd.Flags().StringArrayVar(&headers, "header", []string{}, "Custom header in \"Key: Value\" format. Can be specified multiple times.")
+	rootCmd.Flags().StringVarP(&auth, "auth", "A", "", "Set Authorization header to the provided value")
+	rootCmd.Flags().StringVarP(&authBearer, "auth-bearer", "B", "", "Set Authorization header to \"Bearer {value}\"")
+	rootCmd.Flags().StringVar(&authBasicUser, "auth-basic-user", "", "Username for HTTP Basic authentication (requires --auth-basic-pass)")
+	rootCmd.Flags().StringVar(&authBasicPass, "auth-basic-pass", "", "Password for HTTP Basic authentication (requires --auth-basic-user)")
+	rootCmd.Flags().StringVar(&authBasic, "auth-basic", "", "Custom base64 value for Basic auth (cannot be used with --auth-basic-user/pass)")
 
 	rootCmd.MarkFlagRequired("url")
 
@@ -166,6 +179,60 @@ func run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--extract-strip-components must be non-negative, got %d", stripComponents)
 	}
 
+	// Parse and validate authorization flags
+	headersMap := make(map[string]string)
+
+	// Parse --header flags (curl-style: "Key: Value")
+	for _, headerStr := range headers {
+		parts := strings.SplitN(headerStr, ":", 2)
+		if len(parts) != 2 {
+			return fmt.Errorf("invalid header format: expected \"Key: Value\", got %q", headerStr)
+		}
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		if key == "" {
+			return fmt.Errorf("header key cannot be empty")
+		}
+		headersMap[key] = value
+	}
+
+	// Count auth methods to enforce mutual exclusion
+	authMethods := 0
+	if auth != "" {
+		authMethods++
+	}
+	if authBearer != "" {
+		authMethods++
+	}
+	if authBasicUser != "" || authBasicPass != "" {
+		authMethods++
+	}
+	if authBasic != "" {
+		authMethods++
+	}
+
+	if authMethods > 1 {
+		return fmt.Errorf("only one authentication method can be specified at a time")
+	}
+
+	// Validate and set auth headers
+	if auth != "" {
+		headersMap["Authorization"] = auth
+	} else if authBearer != "" {
+		headersMap["Authorization"] = "Bearer " + authBearer
+	} else if authBasicUser != "" || authBasicPass != "" {
+		// Both user and pass must be set together
+		if authBasicUser == "" || authBasicPass == "" {
+			return fmt.Errorf("--auth-basic-user and --auth-basic-pass must both be specified together")
+		}
+		// Base64 encode username:password
+		credentials := authBasicUser + ":" + authBasicPass
+		encoded := base64.StdEncoding.EncodeToString([]byte(credentials))
+		headersMap["Authorization"] = "Basic " + encoded
+	} else if authBasic != "" {
+		headersMap["Authorization"] = "Basic " + authBasic
+	}
+
 	// Perform download
 	opts := downloader.Options{
 		URL:              urlStr,
@@ -179,6 +246,7 @@ func run(cmd *cobra.Command, args []string) error {
 		UserAgent:        userAgent,
 		MaxBytes:         maxBytes,
 		AllowInsecureTLS: allowInsecureTLS,
+		Headers:          headersMap,
 	}
 
 	_, err = downloader.Download(opts)
