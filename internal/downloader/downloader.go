@@ -48,6 +48,7 @@ func Download(opts Options) (*Result, error) {
 	}
 
 	transport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
 		DialContext: (&net.Dialer{
 			Timeout: opts.ConnectTimeout,
 		}).DialContext,

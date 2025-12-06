@@ -139,5 +139,30 @@ ripvex -U https://legacy-server.example.com/file.bin --allow-insecure-tls
 
 **Warning**: Only use `--allow-insecure-tls` when absolutely necessary and you understand the security implications.
 
+## Proxy Support
+
+ripvex respects standard proxy environment variables for HTTP and HTTPS requests. This allows seamless integration with corporate proxies or network configurations.
+
+### Environment Variables
+
+- `HTTP_PROXY` / `http_proxy` - Proxy server for HTTP requests (e.g., `http://proxy.example.com:8080`)
+- `HTTPS_PROXY` / `https_proxy` - Proxy server for HTTPS requests (e.g., `https://proxy.example.com:8080`)
+- `NO_PROXY` / `no_proxy` - Comma-separated list of hosts to exclude from proxying (e.g., `localhost,127.0.0.1,.internal`)
+
+### Usage Examples
+
+Using an HTTPS proxy:
+```sh
+export HTTPS_PROXY=http://proxy.example.com:8080
+ripvex -U https://example.com/file.tar.gz -x
+```
+
+Excluding internal hosts from the proxy:
+```sh
+export HTTPS_PROXY=http://proxy.example.com:8080
+export NO_PROXY=localhost,127.0.0.1,.internal
+ripvex -U https://example.com/file.tar.gz -x
+```
+
 ## License
 MIT License. See [LICENSE](./LICENSE) for details.
