@@ -5,6 +5,7 @@ import (
 	"crypto/sha512"
 	"fmt"
 	"hash"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -107,10 +108,15 @@ func run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--chdir-create requires --chdir to be specified")
 	}
 
-	// Normalize URL
-	if !strings.HasPrefix(urlStr, "http") {
-		urlStr = "https://" + urlStr
+	// Validate URL
+	parsedURL, err := url.Parse(urlStr)
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
 	}
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return fmt.Errorf("unsupported URL scheme %q: only http and https are supported", parsedURL.Scheme)
+	}
+	urlStr = parsedURL.String()
 
 	// Determine output filename
 	if output == "" {
@@ -151,6 +157,11 @@ func run(cmd *cobra.Command, args []string) error {
 	// Validate max-redirs
 	if maxRedirects < 0 {
 		return fmt.Errorf("--max-redirs must be non-negative, got %d", maxRedirects)
+	}
+
+	// Validate strip-components
+	if stripComponents < 0 {
+		return fmt.Errorf("--extract-strip-components must be non-negative, got %d", stripComponents)
 	}
 
 	// Perform download
