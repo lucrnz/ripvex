@@ -25,6 +25,7 @@ var (
 	extractArchive     bool
 	removeArchive      bool
 	chdir              string
+	chdirCreate        bool
 	stripComponents    int
 	connectTimeout     time.Duration
 	maxTime            time.Duration
@@ -56,6 +57,7 @@ func init() {
 	rootCmd.Flags().BoolVarP(&extractArchive, "extract-archive", "x", false, "Extract the downloaded archive")
 	rootCmd.Flags().BoolVar(&removeArchive, "remove-archive", true, "Delete archive file after successful extraction")
 	rootCmd.Flags().StringVarP(&chdir, "chdir", "C", "", "Change working directory before any operation (panics if directory doesn't exist)")
+	rootCmd.Flags().BoolVar(&chdirCreate, "chdir-create", false, "Create directory if it doesn't exist (requires --chdir)")
 	rootCmd.Flags().IntVar(&stripComponents, "extract-strip-components", 0, "Strip N leading components from file names during extraction")
 	rootCmd.Flags().DurationVar(&connectTimeout, "connect-timeout", 300*time.Second, "Maximum time for connection establishment")
 	rootCmd.Flags().DurationVarP(&maxTime, "max-time", "m", 0, "Maximum total time for the entire operation (0 = unlimited)")
@@ -93,9 +95,16 @@ func Execute() error {
 func run(cmd *cobra.Command, args []string) error {
 	// Change directory first if specified
 	if chdir != "" {
+		if chdirCreate {
+			if err := os.MkdirAll(chdir, 0755); err != nil {
+				return fmt.Errorf("failed to create directory %q: %w", chdir, err)
+			}
+		}
 		if err := os.Chdir(chdir); err != nil {
 			return fmt.Errorf("failed to change directory to %q: %w", chdir, err)
 		}
+	} else if chdirCreate {
+		return fmt.Errorf("--chdir-create requires --chdir to be specified")
 	}
 
 	// Normalize URL

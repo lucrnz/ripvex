@@ -35,6 +35,7 @@ Run `ripvex --help` for full options.
 | Flag | Short | Description | Default |
 |------|-------|-------------|---------|
 | `--chdir` | `-C` | Change working directory before any operation. Panics if directory doesn't exist. | None |
+| `--chdir-create` | | Create directory if it doesn't exist. Requires `--chdir`. | `false` |
 | `--quiet` | `-q` | Suppress progress and final messages (ideal for CI/CD). Errors still printed to stderr. | `false` |
 
 #### Downloader
