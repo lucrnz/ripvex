@@ -117,3 +117,18 @@ Version info is injected at build time via ldflags in the Makefile:
 - Progress updates throttled to 500ms intervals to prevent output spam
 - File permissions: 0755 for directories and executables, 0644 for regular files
 - Preserve executable bit from tar archives when extracting
+
+## Documentation Requirements
+
+### Change Log (`.llm-docs/`)
+After implementing a new feature or code change, create a documentation file:
+- **Location**: `.llm-docs/`
+- **Naming**: `YYYYMMDD_title.md` (e.g., `20251206_add-bearer-auth.md`)
+- **Content**: Document what was changed and the technical reasoning
+- **Skip**: Do not document if the only rationale is "user requested" - focus on technical decisions and context
+- This directory serves as a knowledge base for the project's development history
+
+### README Updates
+When introducing new CLI flags:
+- Update the appropriate flags table in README.md
+- Add usage examples demonstrating the new functionality
