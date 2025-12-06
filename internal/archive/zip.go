@@ -136,5 +136,12 @@ func extractZipFile(f *zip.File, destDir string, opts ExtractOptions, extracted 
 		return fmt.Errorf("extraction exceeded maximum size limit of %s", util.HumanReadableBytes(opts.MaxBytes))
 	}
 
+	// Preserve executable bit if set in archive
+	if f.FileInfo().Mode()&0111 != 0 {
+		if err := os.Chmod(destPath, 0755); err != nil {
+			return fmt.Errorf("failed to set executable permission: %w", err)
+		}
+	}
+
 	return nil
 }
