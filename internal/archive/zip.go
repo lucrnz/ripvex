@@ -2,18 +2,20 @@ package archive
 
 import (
 	"archive/zip"
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 
+	"github.com/lucrnz/ripvex/internal/cleanup"
 	"github.com/lucrnz/ripvex/internal/util"
 )
 
 const maxSymlinkTarget = 4 * 1024
 
 // extractZip extracts a ZIP archive with zip slip protection
-func extractZip(path string, opts ExtractOptions) error {
+func extractZip(ctx context.Context, tracker *cleanup.Tracker, path string, opts ExtractOptions) error {
 	r, err := zip.OpenReader(path)
 	if err != nil {
 		return fmt.Errorf("failed to open zip: %w", err)
@@ -28,7 +30,11 @@ func extractZip(path string, opts ExtractOptions) error {
 	var extracted int64
 
 	for _, f := range r.File {
-		if err := extractZipFile(f, destDir, opts, &extracted); err != nil {
+		// Check for cancellation before processing each entry
+		if ctx != nil && ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if err := extractZipFile(ctx, tracker, f, destDir, opts, &extracted); err != nil {
 			return err
 		}
 	}
@@ -37,7 +43,7 @@ func extractZip(path string, opts ExtractOptions) error {
 }
 
 // extractZipFile extracts a single file from a ZIP archive
-func extractZipFile(f *zip.File, destDir string, opts ExtractOptions, extracted *int64) error {
+func extractZipFile(ctx context.Context, tracker *cleanup.Tracker, f *zip.File, destDir string, opts ExtractOptions, extracted *int64) error {
 	// Apply strip-components
 	name := util.StripPathComponents(f.Name, opts.StripComponents)
 	if name == "" {
@@ -95,7 +101,14 @@ func extractZipFile(f *zip.File, destDir string, opts ExtractOptions, extracted 
 			return fmt.Errorf("failed to remove existing path for symlink: %w", err)
 		}
 
-		return os.Symlink(linkname, destPath)
+		if err := os.Symlink(linkname, destPath); err != nil {
+			return fmt.Errorf("failed to create symlink: %w", err)
+		}
+		// Register symlink for cleanup
+		if tracker != nil {
+			tracker.Register(destPath)
+		}
+		return nil
 	}
 
 	// Create parent directories
@@ -120,6 +133,10 @@ func extractZipFile(f *zip.File, destDir string, opts ExtractOptions, extracted 
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
+	// Register file for cleanup immediately after creation
+	if tracker != nil {
+		tracker.Register(destPath)
+	}
 
 	written, err := io.Copy(outFile, rc)
 	if closeErr := outFile.Close(); closeErr != nil {
@@ -133,6 +150,9 @@ func extractZipFile(f *zip.File, destDir string, opts ExtractOptions, extracted 
 	*extracted += written
 	if opts.MaxBytes > 0 && *extracted > opts.MaxBytes {
 		os.Remove(destPath)
+		if tracker != nil {
+			tracker.Unregister(destPath)
+		}
 		return fmt.Errorf("extraction exceeded maximum size limit of %s", util.HumanReadableBytes(opts.MaxBytes))
 	}
 

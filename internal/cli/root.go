@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/base64"
@@ -14,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/lucrnz/ripvex/internal/archive"
+	"github.com/lucrnz/ripvex/internal/cleanup"
 	"github.com/lucrnz/ripvex/internal/downloader"
 	"github.com/lucrnz/ripvex/internal/util"
 	"github.com/lucrnz/ripvex/internal/version"
@@ -42,6 +44,10 @@ var (
 	authBasicUser      string
 	authBasicPass      string
 	authBasic          string
+
+	// Context and cleanup tracker (set by ExecuteContext)
+	ctx     context.Context
+	tracker *cleanup.Tracker
 )
 
 var rootCmd = &cobra.Command{
@@ -96,8 +102,15 @@ func init() {
 	})
 }
 
-// Execute runs the root command
+// Execute runs the root command (backward compatibility)
 func Execute() error {
+	return ExecuteContext(context.Background(), cleanup.NewTracker())
+}
+
+// ExecuteContext runs the root command with a context and cleanup tracker
+func ExecuteContext(c context.Context, t *cleanup.Tracker) error {
+	ctx = c
+	tracker = t
 	if err := rootCmd.Execute(); err != nil {
 		// Show usage for required flag errors (not caught by SetFlagErrorFunc)
 		if strings.Contains(err.Error(), "required flag") {
@@ -109,6 +122,11 @@ func Execute() error {
 }
 
 func run(cmd *cobra.Command, args []string) error {
+	// Check for cancellation before starting
+	if ctx != nil && ctx.Err() != nil {
+		return ctx.Err()
+	}
+
 	// Change directory first if specified
 	if chdir != "" {
 		if chdirCreate {
@@ -253,7 +271,7 @@ func run(cmd *cobra.Command, args []string) error {
 		Headers:          headersMap,
 	}
 
-	result, err := downloader.Download(opts)
+	result, err := downloader.Download(ctx, tracker, opts)
 	if err != nil {
 		return err
 	}
@@ -264,6 +282,8 @@ func run(cmd *cobra.Command, args []string) error {
 		// Fallback to original output if result doesn't have OutputFile set (shouldn't happen, but safety)
 		finalOutputFile = output
 	}
+
+	// Note: file is already registered by downloader for cleanup
 
 	// Extract archive if requested
 	if extractArchive {
@@ -285,11 +305,14 @@ func run(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(os.Stderr, "Extracting...\n")
 		}
 
+		// Get list of files before extraction to identify extracted files later
+		filesBeforeExtraction := tracker.GetAll()
+
 		opts := archive.ExtractOptions{
 			StripComponents: stripComponents,
 			MaxBytes:        extractMaxBytes,
 		}
-		if err := archive.Extract(finalOutputFile, archiveType, opts); err != nil {
+		if err := archive.Extract(ctx, tracker, finalOutputFile, archiveType, opts); err != nil {
 			return fmt.Errorf("error extracting archive: %w", err)
 		}
 
@@ -297,12 +320,43 @@ func run(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(os.Stderr, "✅ Extraction complete\n")
 		}
 
+		// Get list of files after extraction
+		filesAfterExtraction := tracker.GetAll()
+
+		// Unregister all extracted files (extraction succeeded, so keep them)
+		// This includes the archive file if removeArchive is false
+		for _, file := range filesAfterExtraction {
+			// Skip files that were already registered before extraction (archive file)
+			isArchiveFile := false
+			for _, beforeFile := range filesBeforeExtraction {
+				if file == beforeFile {
+					isArchiveFile = true
+					break
+				}
+			}
+			// Unregister extracted files (not the archive file)
+			if !isArchiveFile {
+				tracker.Unregister(file)
+			}
+		}
+
+		// Handle archive file removal
 		if removeArchive {
 			if err := os.Remove(finalOutputFile); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to remove archive file: %v\n", err)
 			} else if !quiet {
 				fmt.Fprintf(os.Stderr, "Removed archive file: %s\n", finalOutputFile)
 			}
+			// Unregister archive file since it was removed
+			tracker.Unregister(finalOutputFile)
+		} else {
+			// Unregister archive file since extraction succeeded (keep the file)
+			tracker.Unregister(finalOutputFile)
+		}
+	} else {
+		// No extraction requested - unregister on successful completion
+		if finalOutputFile != "" && finalOutputFile != "-" {
+			tracker.Unregister(finalOutputFile)
 		}
 	}
 

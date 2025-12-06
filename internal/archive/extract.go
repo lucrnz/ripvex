@@ -2,48 +2,55 @@ package archive
 
 import (
 	"archive/tar"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 
+	"github.com/lucrnz/ripvex/internal/cleanup"
 	"github.com/lucrnz/ripvex/internal/util"
 )
 
 // Extract extracts an archive based on its detected type
-func Extract(path string, archiveType Type, opts ExtractOptions) error {
+func Extract(ctx context.Context, tracker *cleanup.Tracker, path string, archiveType Type, opts ExtractOptions) error {
+	// Check for cancellation before starting
+	if ctx != nil && ctx.Err() != nil {
+		return ctx.Err()
+	}
+
 	switch archiveType {
 	case Zip:
-		return extractZip(path, opts)
+		return extractZip(ctx, tracker, path, opts)
 	case Tar:
-		return extractTarFromFile(path, opts)
+		return extractTarFromFile(ctx, tracker, path, opts)
 	case Gzip:
-		return extractGzipTar(path, opts)
+		return extractGzipTar(ctx, tracker, path, opts)
 	case Bzip2:
-		return extractBzip2Tar(path, opts)
+		return extractBzip2Tar(ctx, tracker, path, opts)
 	case Xz:
-		return extractXzTar(path, opts)
+		return extractXzTar(ctx, tracker, path, opts)
 	case Zstd:
-		return extractZstdTar(path, opts)
+		return extractZstdTar(ctx, tracker, path, opts)
 	default:
 		return fmt.Errorf("unsupported archive type: %s", archiveType)
 	}
 }
 
 // extractTarFromFile extracts a plain tar archive from a file
-func extractTarFromFile(path string, opts ExtractOptions) error {
+func extractTarFromFile(ctx context.Context, tracker *cleanup.Tracker, path string, opts ExtractOptions) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("failed to open tar file: %w", err)
 	}
 	defer f.Close()
 
-	return extractTar(f, opts)
+	return extractTar(ctx, tracker, f, opts)
 }
 
 // extractTar extracts a tar archive from a reader with zip slip protection
-func extractTar(r io.Reader, opts ExtractOptions) error {
+func extractTar(ctx context.Context, tracker *cleanup.Tracker, r io.Reader, opts ExtractOptions) error {
 	destDir, err := filepath.Abs(".")
 	if err != nil {
 		return fmt.Errorf("failed to get absolute path: %w", err)
@@ -58,6 +65,11 @@ func extractTar(r io.Reader, opts ExtractOptions) error {
 	var extracted int64
 
 	for {
+		// Check for cancellation before processing each entry
+		if ctx != nil && ctx.Err() != nil {
+			return ctx.Err()
+		}
+
 		header, err := tr.Next()
 		if err == io.EOF {
 			break
@@ -100,6 +112,10 @@ func extractTar(r io.Reader, opts ExtractOptions) error {
 			if err != nil {
 				return fmt.Errorf("failed to create file: %w", err)
 			}
+			// Register file for cleanup immediately after creation
+			if tracker != nil {
+				tracker.Register(destPath)
+			}
 
 			written, err := io.Copy(outFile, tr)
 			if closeErr := outFile.Close(); closeErr != nil {
@@ -114,6 +130,9 @@ func extractTar(r io.Reader, opts ExtractOptions) error {
 			extracted += written
 			if opts.MaxBytes > 0 && extracted > opts.MaxBytes {
 				os.Remove(destPath)
+				if tracker != nil {
+					tracker.Unregister(destPath)
+				}
 				return fmt.Errorf("extraction exceeded maximum size limit of %s", util.HumanReadableBytes(opts.MaxBytes))
 			}
 
@@ -150,6 +169,10 @@ func extractTar(r io.Reader, opts ExtractOptions) error {
 			if err := os.Symlink(linkname, destPath); err != nil {
 				return fmt.Errorf("failed to create symlink: %w", err)
 			}
+			// Register symlink for cleanup
+			if tracker != nil {
+				tracker.Register(destPath)
+			}
 
 		case tar.TypeLink:
 			// Apply strip-components to hard link targets
@@ -172,6 +195,10 @@ func extractTar(r io.Reader, opts ExtractOptions) error {
 				if err := os.Link(linkTarget, destPath); err != nil {
 					return fmt.Errorf("failed to create hard link: %w", err)
 				}
+				// Register hard link for cleanup
+				if tracker != nil {
+					tracker.Register(destPath)
+				}
 			} else if errors.Is(err, os.ErrNotExist) {
 				pendingLinks = append(pendingLinks, pendingLink{destPath: destPath, linkTarget: linkTarget})
 			} else {
@@ -182,6 +209,10 @@ func extractTar(r io.Reader, opts ExtractOptions) error {
 
 	// Process deferred hard links after all entries have been read
 	for _, pl := range pendingLinks {
+		// Check for cancellation during deferred link processing
+		if ctx != nil && ctx.Err() != nil {
+			return ctx.Err()
+		}
 		if !util.IsPathSafe(pl.destPath, destDir) || !util.IsPathSafe(pl.linkTarget, destDir) {
 			return fmt.Errorf("hard link escape detected (deferred): %s -> %s", pl.destPath, pl.linkTarget)
 		}
@@ -196,6 +227,10 @@ func extractTar(r io.Reader, opts ExtractOptions) error {
 		}
 		if err := os.Link(pl.linkTarget, pl.destPath); err != nil {
 			return fmt.Errorf("failed to create hard link: %w", err)
+		}
+		// Register hard link for cleanup
+		if tracker != nil {
+			tracker.Register(pl.destPath)
 		}
 	}
 

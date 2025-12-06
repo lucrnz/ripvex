@@ -1,6 +1,7 @@
 package downloader
 
 import (
+	"context"
 	"crypto/sha256"
 	"crypto/sha512"
 	"crypto/tls"
@@ -17,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lucrnz/ripvex/internal/cleanup"
 	"github.com/lucrnz/ripvex/internal/util"
 )
 
@@ -45,7 +47,12 @@ type Result struct {
 }
 
 // Download fetches a URL and writes it to the specified output
-func Download(opts Options) (*Result, error) {
+func Download(ctx context.Context, tracker *cleanup.Tracker, opts Options) (*Result, error) {
+	// Check for cancellation before starting
+	if ctx != nil && ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+
 	tlsConfig := &tls.Config{
 		MinVersion: tls.VersionTLS12, // Secure default
 	}
@@ -79,7 +86,7 @@ func Download(opts Options) (*Result, error) {
 		}
 	}
 
-	req, err := http.NewRequest("GET", opts.URL, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", opts.URL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %w", err)
 	}
@@ -128,9 +135,17 @@ func Download(opts Options) (*Result, error) {
 			return nil, fmt.Errorf("error creating temp file: %w", err)
 		}
 		tempPath := tempFile.Name()
-		defer os.Remove(tempPath)
+		if tracker != nil {
+			tracker.Register(tempPath)
+		}
+		defer func() {
+			os.Remove(tempPath) // Always remove temp file
+			if tracker != nil {
+				tracker.Unregister(tempPath)
+			}
+		}()
 
-		result, err := downloadWithProgress(tempFile, bodyReader, resp.ContentLength, finalOutput, opts.Quiet, opts.HashAlgorithm, opts.ExpectedHash, opts.MaxBytes)
+		result, err := downloadWithProgress(ctx, tempFile, bodyReader, resp.ContentLength, finalOutput, opts.Quiet, opts.HashAlgorithm, opts.ExpectedHash, opts.MaxBytes)
 		if err := tempFile.Close(); err != nil {
 			return nil, fmt.Errorf("error closing temp file: %w", err)
 		}
@@ -157,7 +172,7 @@ func Download(opts Options) (*Result, error) {
 	var writer io.Writer
 	if finalOutput == "-" {
 		writer = os.Stdout
-		result, err := downloadWithProgress(writer, bodyReader, resp.ContentLength, finalOutput, opts.Quiet, opts.HashAlgorithm, opts.ExpectedHash, opts.MaxBytes)
+		result, err := downloadWithProgress(ctx, writer, bodyReader, resp.ContentLength, finalOutput, opts.Quiet, opts.HashAlgorithm, opts.ExpectedHash, opts.MaxBytes)
 		if result != nil {
 			result.OutputFile = finalOutput
 		}
@@ -168,7 +183,11 @@ func Download(opts Options) (*Result, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error creating file: %w", err)
 	}
-	result, err := downloadWithProgress(file, bodyReader, resp.ContentLength, finalOutput, opts.Quiet, opts.HashAlgorithm, opts.ExpectedHash, opts.MaxBytes)
+	// Register file for cleanup immediately after creation
+	if tracker != nil {
+		tracker.Register(finalOutput)
+	}
+	result, err := downloadWithProgress(ctx, file, bodyReader, resp.ContentLength, finalOutput, opts.Quiet, opts.HashAlgorithm, opts.ExpectedHash, opts.MaxBytes)
 	if result != nil {
 		result.OutputFile = finalOutput
 	}
@@ -240,7 +259,7 @@ func newHashFromAlgorithm(algo string) (hash.Hash, string, error) {
 
 // downloadWithProgress reads from reader in chunks and writes to writer, showing real-time progress
 // throttled to update every 500ms, with optional hash verification
-func downloadWithProgress(writer io.Writer, reader io.Reader, total int64, outName string, quiet bool, hashAlgorithm string, expectedHash string, maxBytes int64) (*Result, error) {
+func downloadWithProgress(ctx context.Context, writer io.Writer, reader io.Reader, total int64, outName string, quiet bool, hashAlgorithm string, expectedHash string, maxBytes int64) (*Result, error) {
 	updateInterval := 500 * time.Millisecond
 	lastUpdate := time.Now()
 	var downloaded int64
@@ -256,7 +275,15 @@ func downloadWithProgress(writer io.Writer, reader io.Reader, total int64, outNa
 		}
 	}
 
+	// Check cancellation periodically (every 10 iterations to avoid overhead)
+	iterCount := 0
 	for {
+		// Check for cancellation every 10 iterations
+		if iterCount%10 == 0 && ctx != nil && ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		iterCount++
+
 		n, err := reader.Read(buf)
 
 		// Process bytes FIRST (even if err == io.EOF)

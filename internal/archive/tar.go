@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"compress/bzip2"
 	"compress/gzip"
+	"context"
 	"fmt"
 	"io"
 	"os"
 
 	"github.com/klauspost/compress/zstd"
+	"github.com/lucrnz/ripvex/internal/cleanup"
 	"github.com/ulikunitz/xz"
 )
 
@@ -40,7 +42,7 @@ func isTarContent(r io.Reader) (bool, io.Reader) {
 }
 
 // extractGzipTar extracts a .tar.gz archive
-func extractGzipTar(path string, opts ExtractOptions) error {
+func extractGzipTar(ctx context.Context, tracker *cleanup.Tracker, path string, opts ExtractOptions) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
@@ -58,11 +60,11 @@ func extractGzipTar(path string, opts ExtractOptions) error {
 		return fmt.Errorf("gzip file does not contain a tar archive")
 	}
 
-	return extractTar(reader, opts)
+	return extractTar(ctx, tracker, reader, opts)
 }
 
 // extractBzip2Tar extracts a .tar.bz2 archive
-func extractBzip2Tar(path string, opts ExtractOptions) error {
+func extractBzip2Tar(ctx context.Context, tracker *cleanup.Tracker, path string, opts ExtractOptions) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
@@ -75,11 +77,11 @@ func extractBzip2Tar(path string, opts ExtractOptions) error {
 		return fmt.Errorf("bzip2 file does not contain a tar archive")
 	}
 
-	return extractTar(reader, opts)
+	return extractTar(ctx, tracker, reader, opts)
 }
 
 // extractXzTar extracts a .tar.xz archive
-func extractXzTar(path string, opts ExtractOptions) error {
+func extractXzTar(ctx context.Context, tracker *cleanup.Tracker, path string, opts ExtractOptions) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
@@ -96,11 +98,11 @@ func extractXzTar(path string, opts ExtractOptions) error {
 		return fmt.Errorf("xz file does not contain a tar archive")
 	}
 
-	return extractTar(reader, opts)
+	return extractTar(ctx, tracker, reader, opts)
 }
 
 // extractZstdTar extracts a .tar.zstd archive
-func extractZstdTar(path string, opts ExtractOptions) error {
+func extractZstdTar(ctx context.Context, tracker *cleanup.Tracker, path string, opts ExtractOptions) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
@@ -118,5 +120,5 @@ func extractZstdTar(path string, opts ExtractOptions) error {
 		return fmt.Errorf("zstd file does not contain a tar archive")
 	}
 
-	return extractTar(reader, opts)
+	return extractTar(ctx, tracker, reader, opts)
 }
