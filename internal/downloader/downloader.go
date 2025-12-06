@@ -206,6 +206,19 @@ func downloadWithProgress(writer io.Writer, reader io.Reader, total int64, outNa
 		}
 	}
 
+	// Content-Length validation (skip if hash verification is enabled, as it provides stronger integrity)
+	if total > 0 && downloaded != total && expectedHash == "" {
+		// Delete incomplete file if writing to a file (not stdout)
+		if outName != "-" {
+			if err := os.Remove(outName); err != nil && !os.IsNotExist(err) {
+				if !quiet {
+					fmt.Fprintf(os.Stderr, "\nWarning: failed to remove incomplete file %s: %v\n", outName, err)
+				}
+			}
+		}
+		return nil, fmt.Errorf("incomplete download: received %s, expected %s (Content-Length)", util.HumanReadableBytes(downloaded), util.HumanReadableBytes(total))
+	}
+
 	result := &Result{
 		BytesDownloaded: downloaded,
 		HashMatched:     true,
