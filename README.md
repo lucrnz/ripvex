@@ -44,7 +44,7 @@ Run `ripvex --help` for full options.
 |------|-------|-------------|---------|
 | `--url` | `-U` | **Required**: The URL to download (e.g., `https://example.com/file.zip`). | None |
 | `--output` | `-O` | Output file path. Use `-` for stdout. Defaults to the URL's basename (or `download` if none). | URL basename |
-| `--hash` | `-H` | Expected hash with algorithm prefix (e.g., `sha256:xxxxx...` or `sha512:xxxxx...`). Supported algorithms: `sha256` (64 hex chars), `sha512` (128 hex chars). Case-insensitive. Verifies file integrity; exits 1 on mismatch. In quiet mode, no success message. When used with `--output -`, the file is buffered in memory and only written to stdout after successful verification. Legacy format (hash without prefix) is deprecated and will emit a warning, defaulting to SHA-256. | None |
+| `--hash` | `-H` | Expected hash with algorithm prefix (e.g., `sha256:xxxxx...` or `sha512:xxxxx...`). Supported algorithms: `sha256` (64 hex chars), `sha512` (128 hex chars). Case-insensitive. Verifies file integrity; exits 1 on mismatch. In quiet mode, no success message. When used with `--output -`, the file is buffered in memory and only written to stdout after successful verification. | None |
 | `--connect-timeout` | | Maximum time for connection establishment. | `300s` |
 | `--max-time` | `-m` | Maximum total time for the entire operation (0 = unlimited). | `0` |
 | `--max-redirs` | | Maximum number of redirects to follow. | `30` |
