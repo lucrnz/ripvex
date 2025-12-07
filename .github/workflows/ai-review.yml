@@ -60,9 +60,11 @@ jobs:
           test -f review-results.json || (echo "review results file not found" && exit 1)
           jq '.containsCriticalIssues' review-results.json | grep -q 'false' || (echo "Critical issues found" && exit 1)
 
-      - name: Upload findings
+      - name: Display review summary
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: review.md
-          path: review.md
+        run: |
+          if [ -f review.md ]; then
+            cat review.md >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ review.md file not found" >> $GITHUB_STEP_SUMMARY
+          fi
