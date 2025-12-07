@@ -32,6 +32,7 @@ jobs:
           echo "${{ env.RIPVEX_HASH_SHA256 }}  /tmp/ripvex.tgz" | sha256sum -c || (echo "Ripvex hash mismatch" && exit 1)
           tar -C "$HOME/bin" -xzf /tmp/ripvex.tgz --strip-components=1
           rm -f /tmp/ripvex.tgz
+          test -f $HOME/bin/ripvex || (echo "Ripvex binary not found" && exit 1)
 
       - name: Install crush
         run: |
