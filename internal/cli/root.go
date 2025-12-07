@@ -44,11 +44,12 @@ var (
 	authBasicUser      string
 	authBasicPass      string
 	authBasic          string
-
-	// Context and cleanup tracker (set by ExecuteContext)
-	ctx     context.Context
-	tracker *cleanup.Tracker
 )
+
+// trackerKeyType is a private type for context key to store the cleanup tracker
+type trackerKeyType struct{}
+
+var trackerKey = trackerKeyType{}
 
 var rootCmd = &cobra.Command{
 	Use:   "ripvex",
@@ -109,8 +110,8 @@ func Execute() error {
 
 // ExecuteContext runs the root command with a context and cleanup tracker
 func ExecuteContext(c context.Context, t *cleanup.Tracker) error {
-	ctx = c
-	tracker = t
+	ctx := context.WithValue(c, trackerKey, t)
+	rootCmd.SetContext(ctx)
 	if err := rootCmd.Execute(); err != nil {
 		// Show usage for required flag errors (not caught by SetFlagErrorFunc)
 		if strings.Contains(err.Error(), "required flag") {
@@ -122,6 +123,9 @@ func ExecuteContext(c context.Context, t *cleanup.Tracker) error {
 }
 
 func run(cmd *cobra.Command, args []string) error {
+	ctx := cmd.Context()
+	tracker := ctx.Value(trackerKey).(*cleanup.Tracker)
+
 	// Check for cancellation before starting
 	if ctx.Err() != nil {
 		return ctx.Err()
