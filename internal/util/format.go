@@ -2,7 +2,7 @@ package util
 
 import "fmt"
 
-// HumanReadableBytes formats bytes to a human-readable string (B, KB, MB, GB)
+// HumanReadableBytes formats bytes to a human-readable string (B, KiB, MiB, GiB)
 func HumanReadableBytes(bytes int64) string {
 	const unit = 1024
 	if bytes < unit {
@@ -14,6 +14,6 @@ func HumanReadableBytes(bytes int64) string {
 		val /= unit
 		exp++
 	}
-	units := []string{"B", "KB", "MB", "GB"}
+	units := []string{"B", "KiB", "MiB", "GiB"}
 	return fmt.Sprintf("%.1f %s", val, units[exp])
 }
