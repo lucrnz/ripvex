@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+    timeout-minutes: 10
 
 jobs:
   review:
