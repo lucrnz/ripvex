@@ -55,7 +55,7 @@ jobs:
 
       - name: Run prompt
         run: |
-          $HOME/bin/crush run "Read the contents of the file .llm/prompts/review.md and follow the instructions." --yolo
+          $HOME/bin/crush run "Read the contents of the file .llm/prompts/review.md and follow the instructions."
           test -f review.md || (echo "review file not found" && exit 1)
           test -f review-results.json || (echo "review results file not found" && exit 1)
           jq '.containsCriticalIssues' review-results.json | grep -q 'false' || (echo "Critical issues found" && exit 1)
