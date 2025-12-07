@@ -1,6 +1,7 @@
 package cleanup
 
 import (
+	"fmt"
 	"os"
 	"sync"
 )
@@ -62,7 +63,7 @@ func (t *Tracker) Cleanup() {
 	for _, path := range files {
 		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 			// Best effort cleanup - errors are non-critical
-			_ = err
+			fmt.Fprintf(os.Stderr, "warning: failed to remove temp file %s: %v\n", path, err)
 		}
 	}
 }
