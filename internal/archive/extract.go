@@ -120,9 +120,9 @@ func extractTar(ctx context.Context, tracker *cleanup.Tracker, r io.Reader, opts
 			written, err := io.Copy(outFile, tr)
 			if closeErr := outFile.Close(); closeErr != nil {
 				if err == nil {
-					err = fmt.Errorf("failed to close file: %w", closeErr)
+					return fmt.Errorf("failed to close file: %w", closeErr)
 				}
-				return err
+				return fmt.Errorf("failed to write file: %w", err)
 			}
 			if err != nil {
 				return fmt.Errorf("failed to write file: %w", err)
