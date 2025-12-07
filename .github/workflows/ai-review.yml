@@ -36,9 +36,14 @@ jobs:
 
       - name: Install crush
         run: |
-          $HOME/bin/ripvex -C "$HOME/bin" -U "${{ env.CRUSH_URL }}" -H "sha256:${{ env.CRUSH_HASH_SHA256 }}" -q -x
-          test -f $HOME/bin/crush || (echo "Crush binary not found" && exit 1)
-          chmod +x $HOME/bin/crush
+          DOWNLOAD_DIR=$(mktemp -d)
+          mkdir -p "$DOWNLOAD_DIR"
+          $HOME/bin/ripvex -C "$DOWNLOAD_DIR" \
+          -U "${{ env.CRUSH_URL }}" \
+          -H "sha256:${{ env.CRUSH_HASH_SHA256 }}" \
+          --extract-strip-components=1 -q -x
+          mv "$DOWNLOAD_DIR/crush" $HOME/bin/crush
+          rm -rf "$DOWNLOAD_DIR"
 
       - name: Update crush providers
         run: |
