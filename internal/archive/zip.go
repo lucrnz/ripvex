@@ -142,6 +142,10 @@ func extractZipFile(ctx context.Context, tracker *cleanup.Tracker, f *zip.File, 
 	if err == io.EOF {
 		err = nil // CopyN returns EOF when source has fewer bytes than limit
 	}
+	if written != fileSize {
+		outFile.Close()
+		return fmt.Errorf("incomplete file %s: wrote %d of %d bytes", name, written, fileSize)
+	}
 	if closeErr := outFile.Close(); closeErr != nil {
 		if err == nil {
 			return fmt.Errorf("failed to close file: %w", closeErr)
