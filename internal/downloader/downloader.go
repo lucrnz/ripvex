@@ -49,7 +49,7 @@ type Result struct {
 // Download fetches a URL and writes it to the specified output
 func Download(ctx context.Context, tracker *cleanup.Tracker, opts Options) (*Result, error) {
 	// Check for cancellation before starting
-	if ctx != nil && ctx.Err() != nil {
+	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
 
@@ -279,7 +279,7 @@ func downloadWithProgress(ctx context.Context, writer io.Writer, reader io.Reade
 	iterCount := 0
 	for {
 		// Check for cancellation every 10 iterations
-		if iterCount%10 == 0 && ctx != nil && ctx.Err() != nil {
+		if iterCount%10 == 0 && ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
 		iterCount++

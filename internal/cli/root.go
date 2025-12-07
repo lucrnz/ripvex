@@ -123,7 +123,7 @@ func ExecuteContext(c context.Context, t *cleanup.Tracker) error {
 
 func run(cmd *cobra.Command, args []string) error {
 	// Check for cancellation before starting
-	if ctx != nil && ctx.Err() != nil {
+	if ctx.Err() != nil {
 		return ctx.Err()
 	}
 

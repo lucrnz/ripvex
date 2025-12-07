@@ -31,7 +31,7 @@ func extractZip(ctx context.Context, tracker *cleanup.Tracker, path string, opts
 
 	for _, f := range r.File {
 		// Check for cancellation before processing each entry
-		if ctx != nil && ctx.Err() != nil {
+		if ctx.Err() != nil {
 			return ctx.Err()
 		}
 		if err := extractZipFile(ctx, tracker, f, destDir, opts, &extracted); err != nil {

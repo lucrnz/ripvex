@@ -16,7 +16,7 @@ import (
 // Extract extracts an archive based on its detected type
 func Extract(ctx context.Context, tracker *cleanup.Tracker, path string, archiveType Type, opts ExtractOptions) error {
 	// Check for cancellation before starting
-	if ctx != nil && ctx.Err() != nil {
+	if ctx.Err() != nil {
 		return ctx.Err()
 	}
 
@@ -66,7 +66,7 @@ func extractTar(ctx context.Context, tracker *cleanup.Tracker, r io.Reader, opts
 
 	for {
 		// Check for cancellation before processing each entry
-		if ctx != nil && ctx.Err() != nil {
+		if ctx.Err() != nil {
 			return ctx.Err()
 		}
 
@@ -210,7 +210,7 @@ func extractTar(ctx context.Context, tracker *cleanup.Tracker, r io.Reader, opts
 	// Process deferred hard links after all entries have been read
 	for _, pl := range pendingLinks {
 		// Check for cancellation during deferred link processing
-		if ctx != nil && ctx.Err() != nil {
+		if ctx.Err() != nil {
 			return ctx.Err()
 		}
 		if !util.IsPathSafe(pl.destPath, destDir) || !util.IsPathSafe(pl.linkTarget, destDir) {
