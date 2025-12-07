@@ -161,14 +161,3 @@ Specific consequences if not addressed.
 ## Notes
 Any observations about the codebase that don't fit into issues but are worth mentioning.
 ```
-
-### 2. Review Results JSON
-Save to `review-results.json`:
-```json
-{
-  "containsCriticalIssues": true,
-}
-```
-
-Set `containsCriticalIssues` to `true` only if Critical severity issues were found.
-```
