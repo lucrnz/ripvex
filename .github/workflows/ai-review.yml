@@ -5,11 +5,50 @@ on:
   push:
     branches:
       - main
-    timeout-minutes: 10
 
 jobs:
-  review:
+  throttle-check:
     runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - name: Check last workflow run
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Manual dispatch always runs
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Query last successful run
+          LAST_RUN=$(gh api repos/${{ github.repository }}/actions/workflows/ai-review.yml/runs \
+            --jq '.workflow_runs | map(select(.conclusion == "success")) | .[0].created_at // empty')
+          
+          if [ -z "$LAST_RUN" ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Compare timestamps (1 hour = 3600 seconds)
+          LAST_EPOCH=$(date -d "$LAST_RUN" +%s)
+          NOW_EPOCH=$(date +%s)
+          DIFF=$((NOW_EPOCH - LAST_EPOCH))
+          
+          if [ $DIFF -gt 3600 ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "Skipping: last successful run was $((DIFF / 60)) minutes ago"
+          fi
+
+  review:
+    needs: throttle-check
+    if: needs.throttle-check.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
       CRUSH_URL: "https://github.com/charmbracelet/crush/releases/download/v0.21.0/crush_0.21.0_Linux_x86_64.tar.gz"
