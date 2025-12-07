@@ -12,8 +12,6 @@ jobs:
     timeout-minutes: 5
     env:
       XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
-      RIPVEX_URL: "https://github.com/lucrnz/ripvex/releases/download/ripvex-dev-20251206-c21c8f3/ripvex-dev-20251206-c21c8f3-amd64.tar.gz"
-      RIPVEX_HASH_SHA256: "5dd87cb4ddcb5a07a9ecb0601bc43efe486971c7ccdefd1194da2e2c917e086e"
       CRUSH_URL: "https://github.com/charmbracelet/crush/releases/download/v0.21.0/crush_0.21.0_Linux_x86_64.tar.gz"
       CRUSH_HASH_SHA256: "efa1642e4b3f8d49381e709cdb72eb98d710ccb9626019f395fa741144af7e31"
     steps:
@@ -25,25 +23,17 @@ jobs:
         with:
           go-version: 'stable'
 
-      - name: Install ripvex
-        run: |
-          mkdir -p "$HOME/bin"
-          curl -fL -o /tmp/ripvex.tgz "${{ env.RIPVEX_URL }}"
-          echo "${{ env.RIPVEX_HASH_SHA256 }}  /tmp/ripvex.tgz" | sha256sum -c || (echo "Ripvex hash mismatch" && exit 1)
-          tar -C "$HOME/bin" -xzf /tmp/ripvex.tgz --strip-components=1
-          rm -f /tmp/ripvex.tgz
-          test -f $HOME/bin/ripvex || (echo "Ripvex binary not found" && exit 1)
-
       - name: Install crush
         run: |
           DOWNLOAD_DIR=$(mktemp -d)
-          mkdir -p "$DOWNLOAD_DIR"
-          $HOME/bin/ripvex -C "$DOWNLOAD_DIR" \
-          -U "${{ env.CRUSH_URL }}" \
-          -H "sha256:${{ env.CRUSH_HASH_SHA256 }}" \
-          --extract-strip-components=1 -q -x
-          mv "$DOWNLOAD_DIR/crush" $HOME/bin/crush
-          rm -rf "$DOWNLOAD_DIR"
+          pushd $DOWNLOAD_DIR
+          curl -fL -o crush.tgz "${{ env.CRUSH_URL }}"
+          echo "${{ env.CRUSH_HASH_SHA256 }}  crush.tgz" | sha256sum -c
+          tar -xzf crush.tgz --strip-components=1
+          rm -f crush.tar.gz
+          mv crush $HOME/bin/crush
+          popd
+          rm -rf $DOWNLOAD_DIR
 
       - name: Update crush providers
         run: |
