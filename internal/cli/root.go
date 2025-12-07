@@ -31,13 +31,13 @@ var (
 	chdir              string
 	chdirCreate        bool
 	stripComponents    int
-	connectTimeout     time.Duration
-	maxTime            time.Duration
+	connectTimeoutStr  string
+	maxTimeStr         string
 	maxRedirects       int
 	userAgent          string
 	maxBytesStr        string
 	extractMaxBytesStr string
-	extractTimeout     time.Duration
+	extractTimeoutStr  string
 	allowInsecureTLS   bool
 	headers            []string
 	auth               string
@@ -76,13 +76,13 @@ func init() {
 	rootCmd.Flags().StringVarP(&chdir, "chdir", "C", "", "Change working directory before any operation (fails if directory doesn't exist)")
 	rootCmd.Flags().BoolVar(&chdirCreate, "chdir-create", false, "Create directory if it doesn't exist (requires --chdir)")
 	rootCmd.Flags().IntVar(&stripComponents, "extract-strip-components", 0, "Strip N leading components from file names during extraction")
-	rootCmd.Flags().DurationVar(&connectTimeout, "connect-timeout", 300*time.Second, "Maximum time for connection establishment")
-	rootCmd.Flags().DurationVarP(&maxTime, "max-time", "m", 0, "Maximum total time for the entire operation (0 = unlimited)")
+	rootCmd.Flags().StringVar(&connectTimeoutStr, "connect-timeout", "300s", "Maximum time for connection establishment (supports human-readable formats like \"5m\", \"1h30m\", \"2d\")")
+	rootCmd.Flags().StringVarP(&maxTimeStr, "max-time", "m", "0", "Maximum total time for the entire operation (0 = unlimited). Supports human-readable formats like \"1h\", \"2d\", \"1w\")")
 	rootCmd.Flags().IntVar(&maxRedirects, "max-redirs", 30, "Maximum number of redirects to follow")
 	rootCmd.Flags().StringVar(&userAgent, "user-agent", version.UserAgent(), "User-Agent header to send with HTTP requests")
 	rootCmd.Flags().StringVarP(&maxBytesStr, "max-bytes", "M", "4GiB", "Maximum bytes to download (e.g., \"4GiB\", \"512MB\")")
 	rootCmd.Flags().StringVar(&extractMaxBytesStr, "extract-max-bytes", "8GiB", "Maximum total bytes to extract from archive (e.g., \"8GiB\")")
-	rootCmd.Flags().DurationVar(&extractTimeout, "extract-timeout", 0, "Maximum time for archive extraction (0 = unlimited)")
+	rootCmd.Flags().StringVar(&extractTimeoutStr, "extract-timeout", "0", "Maximum time for archive extraction (0 = unlimited). Supports human-readable formats like \"30m\", \"1h\", \"2d\")")
 	rootCmd.Flags().BoolVar(&allowInsecureTLS, "allow-insecure-tls", false, "Allow insecure TLS versions (1.0/1.1) with known vulnerabilities")
 	rootCmd.Flags().StringArrayVar(&headers, "header", []string{}, "Custom header in \"Key: Value\" format. Can be specified multiple times.")
 	rootCmd.Flags().StringVarP(&auth, "auth", "A", "", "Set Authorization header to the provided value")
@@ -192,6 +192,25 @@ func run(cmd *cobra.Command, args []string) error {
 	extractMaxBytes, err := util.ParseByteSize(extractMaxBytesStr)
 	if err != nil {
 		return fmt.Errorf("invalid --extract-max-bytes value: %w", err)
+	}
+
+	// Parse duration limits
+	var connectTimeout time.Duration
+	connectTimeout, err = util.ParseDuration(connectTimeoutStr)
+	if err != nil {
+		return fmt.Errorf("invalid --connect-timeout value: %w", err)
+	}
+
+	var maxTime time.Duration
+	maxTime, err = util.ParseDuration(maxTimeStr)
+	if err != nil {
+		return fmt.Errorf("invalid --max-time value: %w", err)
+	}
+
+	var extractTimeout time.Duration
+	extractTimeout, err = util.ParseDuration(extractTimeoutStr)
+	if err != nil {
+		return fmt.Errorf("invalid --extract-timeout value: %w", err)
 	}
 
 	hashAlgo, hashDigest, err := parseExpectedHash(expectedHash)

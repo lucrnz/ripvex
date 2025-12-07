@@ -45,8 +45,8 @@ Run `ripvex --help` for full options.
 | `--url` | `-U` | **Required**: The URL to download (e.g., `https://example.com/file.zip`). | None |
 | `--output` | `-O` | Output file path. Use `-` for stdout. Defaults to the URL's basename (or `download` if none). | URL basename |
 | `--hash` | `-H` | Expected hash with algorithm prefix (e.g., `sha256:xxxxx...` or `sha512:xxxxx...`). Supported algorithms: `sha256` (64 hex chars), `sha512` (128 hex chars). Case-insensitive. Verifies file integrity; exits 1 on mismatch. In quiet mode, no success message. When used with `--output -`, the file is buffered in memory and only written to stdout after successful verification. | None |
-| `--connect-timeout` | | Maximum time for connection establishment. | `300s` |
-| `--max-time` | `-m` | Maximum total time for the entire operation (0 = unlimited). | `0` |
+| `--connect-timeout` | | Maximum time for connection establishment. Supports human-readable formats (e.g., `"5m"`, `"1h30m"`, `"2d"`). | `300s` |
+| `--max-time` | `-m` | Maximum total time for the entire operation (0 = unlimited). Supports human-readable formats (e.g., `"1h"`, `"2d"`, `"1w"`). | `0` |
 | `--max-redirs` | | Maximum number of redirects to follow. | `30` |
 | `--max-bytes` | `-M` | Maximum bytes to download (supports `k/K/KB/KiB`, `m/M/MB/MiB`, `g/G/GB/GiB`). | `4GiB` |
 | `--allow-insecure-tls` | | Allow insecure TLS versions (1.0/1.1) with known vulnerabilities. | `false` |
@@ -59,7 +59,7 @@ Run `ripvex --help` for full options.
 | `--remove-archive` | | Delete archive file after successful extraction. | `true` |
 | `--extract-strip-components` | | Strip N leading components from file names during extraction. | `0` |
 | `--extract-max-bytes` | | Maximum total bytes to extract from the archive. Supports the same units as `--max-bytes`. | `8GiB` |
-| `--extract-timeout` | | Maximum time for archive extraction (0 = unlimited). | `0` |
+| `--extract-timeout` | | Maximum time for archive extraction (0 = unlimited). Supports human-readable formats (e.g., `"30m"`, `"1h"`, `"2d"`). | `0` |
 
 #### Authorization Flags
 
