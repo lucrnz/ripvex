@@ -28,7 +28,7 @@ jobs:
       - name: Install ripvex
         run: |
           mkdir -p "$HOME/bin"
-          curl -fL -O /tmp/ripvex.tgz "${{ env.RIPVEX_URL }}"
+          curl -fL -o /tmp/ripvex.tgz "${{ env.RIPVEX_URL }}"
           echo "${{ env.RIPVEX_HASH_SHA256 }}  /tmp/ripvex.tgz" | sha256sum -c || (echo "Ripvex hash mismatch" && exit 1)
           tar -C "$HOME/bin" -xzf /tmp/ripvex.tgz --strip-components=1
           rm -f /tmp/ripvex.tgz
