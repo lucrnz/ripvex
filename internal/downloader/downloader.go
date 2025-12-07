@@ -293,8 +293,11 @@ func downloadWithProgress(ctx context.Context, writer io.Writer, reader io.Reade
 				hasher.Write(buf[:n])
 			}
 			n2, writeErr := writer.Write(buf[:n])
-			if writeErr != nil || n2 != n {
+			if writeErr != nil {
 				return nil, fmt.Errorf("error writing: %w", writeErr)
+			}
+			if n2 != n {
+				return nil, fmt.Errorf("short write: wrote %d of %d bytes", n2, n)
 			}
 			downloaded += int64(n)
 			if maxBytes > 0 && downloaded > maxBytes {
