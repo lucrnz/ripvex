@@ -10,7 +10,7 @@ jobs:
   review:
     runs-on: ubuntu-latest
     env:
-      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
       CRUSH_URL: "https://github.com/charmbracelet/crush/releases/download/v0.21.0/crush_0.21.0_Linux_x86_64.tar.gz"
       CRUSH_HASH_SHA256: "efa1642e4b3f8d49381e709cdb72eb98d710ccb9626019f395fa741144af7e31"
     steps:
@@ -46,8 +46,8 @@ jobs:
           cat > $HOME/.local/share/crush/crush.json << 'EOF'
           {
             "models": {
-              "large": {"model":"deepseek/deepseek-v3.2","provider":"openrouter","reasoning_effort":"high","max_tokens":32768},
-              "small": {"model":"deepseek/deepseek-v3.2","provider":"openrouter","reasoning_effort":"medium","max_tokens":32768}
+              "large": {"model":"grok-4-1-fast-reasoning","provider":"xai","max_tokens":200000},
+              "small": {"model":"grok-4-1-fast-non-reasoning","provider":"xai","max_tokens":200000}
             }
           }
           EOF
