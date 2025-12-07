@@ -25,6 +25,7 @@ jobs:
 
       - name: Install crush
         run: |
+          mkdir -p $HOME/bin
           DOWNLOAD_DIR=$(mktemp -d)
           pushd $DOWNLOAD_DIR
           curl -fL -o crush.tgz "${{ env.CRUSH_URL }}"
