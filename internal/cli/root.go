@@ -71,7 +71,7 @@ func init() {
 	rootCmd.Flags().StringVarP(&expectedHash, "hash", "H", "", "Expected hash with algorithm prefix (e.g., sha256:xxxxx... or sha512:xxxxx...). Supported algorithms: sha256, sha512")
 	rootCmd.Flags().BoolVarP(&extractArchive, "extract-archive", "x", false, "Extract the downloaded archive")
 	rootCmd.Flags().BoolVar(&removeArchive, "remove-archive", true, "Delete archive file after successful extraction")
-	rootCmd.Flags().StringVarP(&chdir, "chdir", "C", "", "Change working directory before any operation (panics if directory doesn't exist)")
+	rootCmd.Flags().StringVarP(&chdir, "chdir", "C", "", "Change working directory before any operation (fails if directory doesn't exist)")
 	rootCmd.Flags().BoolVar(&chdirCreate, "chdir-create", false, "Create directory if it doesn't exist (requires --chdir)")
 	rootCmd.Flags().IntVar(&stripComponents, "extract-strip-components", 0, "Strip N leading components from file names during extraction")
 	rootCmd.Flags().DurationVar(&connectTimeout, "connect-timeout", 300*time.Second, "Maximum time for connection establishment")
