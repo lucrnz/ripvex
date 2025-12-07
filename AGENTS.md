@@ -14,6 +14,8 @@ make build          # Build to build/ripvex with dev version
 make clean          # Remove build artifacts
 ```
 
+Minimum Go version: 1.25.5 (per go.mod)
+
 Build with custom version info:
 ```bash
 VERSION_PREFIX=v1.0 VERSION_DATE=20250101 make build
@@ -50,6 +52,7 @@ The codebase follows a standard Go CLI application structure:
 - **internal/downloader/**: HTTP download logic with progress reporting and hash verification
 - **internal/archive/**: Archive detection (magic bytes) and extraction with security protections
 - **internal/util/**: Shared utilities (size parsing, path safety, formatting)
+- **internal/cleanup/**: Cleanup tracker for temporary files and graceful interrupt handling
 - **internal/version/**: Version information injected at build time via ldflags
 
 ### Key Design Patterns
@@ -90,11 +93,29 @@ Hash algorithms defined in a registry pattern (supportedHashes map in internal/c
 **7. Strip Components**
 Like tar's --strip-components, the --extract-strip-components flag removes N leading path components during extraction. Applied to file paths, symlink targets, and hard link targets.
 
+**8. Cleanup Tracker**
+- `cleanup.Tracker` registers files as soon as they are created; downloader and archive extraction unregister them after success. `main` defers `tracker.Cleanup()` to remove temporary files on interrupt or failure.
+
+**9. Signal Handling and Cancellation**
+- `cmd/ripvex/main.go` uses `signal.NotifyContext` to handle SIGINT/SIGTERM, propagating cancellation through the CLI to downloader/extraction loops that poll `ctx.Err()`. Exits with code 130 on SIGINT.
+
+**10. Content-Disposition Awareness**
+- Downloader resolves filenames from the HTTP `Content-Disposition` header when `--output` is not set, preferring RFC 5987 `filename*` and falling back to `filename` while preventing path traversal.
+
 ### HTTP Client Configuration
 - Connection timeout: --connect-timeout (default 300s)
 - Total operation timeout: --max-time (default unlimited)
 - Redirect handling: --max-redirs (default 30)
 - Custom User-Agent: Built from version info (injected via ldflags)
+- TLS security: Minimum TLS 1.2 by default; `--allow-insecure-tls` lowers to TLS 1.0/1.1 for legacy endpoints (use sparingly).
+- Proxy support: Honors `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` via `http.ProxyFromEnvironment`.
+
+### CLI Flags and Defaults
+- Authorization: `--header`, `--auth` (-A), `--auth-bearer` (-B), `--auth-basic-user/pass`, and `--auth-basic` are mutually exclusive and set the Authorization header in different ways.
+- Directory control: `--chdir` changes working directory; `--chdir-create` optionally creates it (requires `--chdir`).
+- HTTP identity: `--user-agent` overrides the default versioned User-Agent string.
+- TLS compatibility: `--allow-insecure-tls` enables TLS 1.0/1.1 for legacy servers.
+- Size/time defaults: `--max-bytes` defaults to 4GiB; `--extract-max-bytes` defaults to 8GiB; `--connect-timeout` defaults to 300s.
 
 ### Version Injection
 Version info is injected at build time via ldflags in the Makefile:
@@ -108,6 +129,7 @@ Version info is injected at build time via ldflags in the Makefile:
 - github.com/dustin/go-humanize: Human-readable byte sizes
 - github.com/klauspost/compress: Zstd compression support
 - github.com/ulikunitz/xz: XZ compression support
+- Indirect: github.com/inconshreveable/mousetrap, github.com/spf13/pflag (via cobra)
 
 ## Coding Conventions
 
