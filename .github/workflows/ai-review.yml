@@ -36,15 +36,13 @@ jobs:
 
       - name: Install crush
         run: |
-          mkdir -p "$HOME/bin"
-          ripvex -C "$HOME/bin" -U "${{ env.CRUSH_URL }}" -H "sha256:${{ env.CRUSH_HASH_SHA256 }}" -q -x
+          $HOME/bin/ripvex -C "$HOME/bin" -U "${{ env.CRUSH_URL }}" -H "sha256:${{ env.CRUSH_HASH_SHA256 }}" -q -x
           test -f $HOME/bin/crush || (echo "Crush binary not found" && exit 1)
           chmod +x $HOME/bin/crush
-          export PATH="$HOME/bin:$PATH"
 
       - name: Update crush providers
         run: |
-          crush update-providers
+          $HOME/bin/crush update-providers
 
       - name: Setup crush config
         run: |
@@ -61,7 +59,7 @@ jobs:
 
       - name: Run prompt
         run: |
-          crush run -p "Read the contents of the file .llm/prompts/review.md and follow the instructions." --yolo
+          $HOME/bin/crush run -p "Read the contents of the file .llm/prompts/review.md and follow the instructions." --yolo
           test -f review.md || (echo "review file not found" && exit 1)
           test -f review-results.json || (echo "review results file not found" && exit 1)
           jq '.containsCriticalIssues' review-results.json | grep -q 'false' || (echo "Critical issues found" && exit 1)
