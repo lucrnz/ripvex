@@ -29,8 +29,8 @@ jobs:
           pushd $DOWNLOAD_DIR
           curl -fL -o crush.tgz "${{ env.CRUSH_URL }}"
           echo "${{ env.CRUSH_HASH_SHA256 }}  crush.tgz" | sha256sum -c
-          tar -xzf crush.tgz --strip-components=1
-          rm -f crush.tar.gz
+          tar --strip-components=1 -xzf crush.tgz
+          rm -f crush.tgz
           mv crush $HOME/bin/crush
           popd
           rm -rf $DOWNLOAD_DIR
