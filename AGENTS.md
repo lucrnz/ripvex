@@ -120,9 +120,9 @@ Version info is injected at build time via ldflags in the Makefile:
 
 ## Documentation Requirements
 
-### Change Log (`.llm-docs/`)
+### Change Log (`.llm/docs/`)
 After implementing a new feature or code change, create a documentation file:
-- **Location**: `.llm-docs/`
+- **Location**: `.llm/docs/`
 - **Naming**: `YYYYMMDD_title.md` (e.g., `20251206_add-bearer-auth.md`)
 - **Content**: Document what was changed and the technical reasoning
 - **Skip**: Do not document if the only rationale is "user requested" - focus on technical decisions and context
