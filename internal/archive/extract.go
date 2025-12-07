@@ -117,7 +117,10 @@ func extractTar(ctx context.Context, tracker *cleanup.Tracker, r io.Reader, opts
 				tracker.Register(destPath)
 			}
 
-			written, err := io.Copy(outFile, tr)
+			written, err := io.CopyN(outFile, tr, header.Size)
+			if err == io.EOF {
+				err = nil // CopyN returns EOF when source has fewer bytes than limit
+			}
 			if closeErr := outFile.Close(); closeErr != nil {
 				if err == nil {
 					return fmt.Errorf("failed to close file: %w", closeErr)
