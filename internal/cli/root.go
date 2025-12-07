@@ -124,7 +124,10 @@ func ExecuteContext(c context.Context, t *cleanup.Tracker) error {
 
 func run(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
-	tracker := ctx.Value(trackerKey).(*cleanup.Tracker)
+	tracker, ok := ctx.Value(trackerKey).(*cleanup.Tracker)
+	if !ok || tracker == nil {
+		return fmt.Errorf("internal error: cleanup tracker not found in context")
+	}
 
 	// Check for cancellation before starting
 	if ctx.Err() != nil {
