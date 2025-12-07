@@ -37,6 +37,7 @@ var (
 	userAgent          string
 	maxBytesStr        string
 	extractMaxBytesStr string
+	extractTimeout     time.Duration
 	allowInsecureTLS   bool
 	headers            []string
 	auth               string
@@ -81,6 +82,7 @@ func init() {
 	rootCmd.Flags().StringVar(&userAgent, "user-agent", version.UserAgent(), "User-Agent header to send with HTTP requests")
 	rootCmd.Flags().StringVarP(&maxBytesStr, "max-bytes", "M", "4GiB", "Maximum bytes to download (e.g., \"4GiB\", \"512MB\")")
 	rootCmd.Flags().StringVar(&extractMaxBytesStr, "extract-max-bytes", "8GiB", "Maximum total bytes to extract from archive (e.g., \"8GiB\")")
+	rootCmd.Flags().DurationVar(&extractTimeout, "extract-timeout", 0, "Maximum time for archive extraction (0 = unlimited)")
 	rootCmd.Flags().BoolVar(&allowInsecureTLS, "allow-insecure-tls", false, "Allow insecure TLS versions (1.0/1.1) with known vulnerabilities")
 	rootCmd.Flags().StringArrayVar(&headers, "header", []string{}, "Custom header in \"Key: Value\" format. Can be specified multiple times.")
 	rootCmd.Flags().StringVarP(&auth, "auth", "A", "", "Set Authorization header to the provided value")
@@ -315,11 +317,19 @@ func run(cmd *cobra.Command, args []string) error {
 		// Get list of files before extraction to identify extracted files later
 		filesBeforeExtraction := tracker.GetAll()
 
+		// Create timeout context for extraction if specified
+		extractCtx := ctx
+		if extractTimeout > 0 {
+			var cancel context.CancelFunc
+			extractCtx, cancel = context.WithTimeout(ctx, extractTimeout)
+			defer cancel()
+		}
+
 		opts := archive.ExtractOptions{
 			StripComponents: stripComponents,
 			MaxBytes:        extractMaxBytes,
 		}
-		if err := archive.Extract(ctx, tracker, finalOutputFile, archiveType, opts); err != nil {
+		if err := archive.Extract(extractCtx, tracker, finalOutputFile, archiveType, opts); err != nil {
 			return fmt.Errorf("error extracting archive: %w", err)
 		}
 

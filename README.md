@@ -59,6 +59,7 @@ Run `ripvex --help` for full options.
 | `--remove-archive` | | Delete archive file after successful extraction. | `true` |
 | `--extract-strip-components` | | Strip N leading components from file names during extraction. | `0` |
 | `--extract-max-bytes` | | Maximum total bytes to extract from the archive. Supports the same units as `--max-bytes`. | `8GiB` |
+| `--extract-timeout` | | Maximum time for archive extraction (0 = unlimited). | `0` |
 
 #### Authorization Flags
 
