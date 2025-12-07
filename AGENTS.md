@@ -104,7 +104,7 @@ Like tar's --strip-components, the --extract-strip-components flag removes N lea
 
 ### HTTP Client Configuration
 - Connection timeout: --connect-timeout (default 300s)
-- Total operation timeout: --max-time (default unlimited)
+- Download timeout: --download-max-time (default 1h)
 - Redirect handling: --max-redirs (default 30)
 - Custom User-Agent: Built from version info (injected via ldflags)
 - TLS security: Minimum TLS 1.2 by default; `--allow-insecure-tls` lowers to TLS 1.0/1.1 for legacy endpoints (use sparingly).
@@ -115,7 +115,7 @@ Like tar's --strip-components, the --extract-strip-components flag removes N lea
 - Directory control: `--chdir` changes working directory; `--chdir-create` optionally creates it (requires `--chdir`).
 - HTTP identity: `--user-agent` overrides the default versioned User-Agent string.
 - TLS compatibility: `--allow-insecure-tls` enables TLS 1.0/1.1 for legacy servers.
-- Size/time defaults: `--max-bytes` defaults to 4GiB; `--extract-max-bytes` defaults to 8GiB; `--connect-timeout` defaults to 300s.
+- Size/time defaults: `--max-bytes` defaults to 4GiB; `--extract-max-bytes` defaults to 8GiB; `--connect-timeout` defaults to 300s; `--download-max-time` defaults to 1h; `--extract-timeout` defaults to 30m.
 
 ### Version Injection
 Version info is injected at build time via ldflags in the Makefile:
