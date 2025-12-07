@@ -1,0 +1,73 @@
+name: AI Review
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+      RIPVEX_URL: "https://github.com/lucrnz/ripvex/releases/download/ripvex-dev-20251206-c21c8f3/ripvex-dev-20251206-c21c8f3-amd64.tar.gz"
+      RIPVEX_HASH_SHA256: "5dd87cb4ddcb5a07a9ecb0601bc43efe486971c7ccdefd1194da2e2c917e086e"
+      CRUSH_URL: "https://github.com/charmbracelet/crush/releases/download/v0.21.0/crush_0.21.0_Linux_x86_64.tar.gz"
+      CRUSH_HASH_SHA256: "efa1642e4b3f8d49381e709cdb72eb98d710ccb9626019f395fa741144af7e31"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Install ripvex
+        run: |
+          mkdir -p "$HOME/bin"
+          curl -fL -O /tmp/ripvex.tgz "${{ env.RIPVEX_URL }}"
+          echo "${{ env.RIPVEX_HASH_SHA256 }}  /tmp/ripvex.tgz" | sha256sum -c || (echo "Ripvex hash mismatch" && exit 1)
+          tar -C "$HOME/bin" -xzf /tmp/ripvex.tgz --strip-components=1
+          rm -f /tmp/ripvex.tgz
+
+      - name: Install crush
+        run: |
+          mkdir -p "$HOME/bin"
+          ripvex -C "$HOME/bin" -U "${{ env.CRUSH_URL }}" -H "sha256:${{ env.CRUSH_HASH_SHA256 }}" -q -x
+          test -f $HOME/bin/crush || (echo "Crush binary not found" && exit 1)
+          chmod +x $HOME/bin/crush
+          export PATH="$HOME/bin:$PATH"
+
+      - name: Update crush providers
+        run: |
+          crush update-providers
+
+      - name: Setup crush config
+        run: |
+          mkdir -p $HOME/.local/share/crush
+          ## setup default models
+          cat > $HOME/.local/share/crush/crush.json << 'EOF'
+          {
+            "models": {
+              "large": {"model":"grok-4-1-fast-reasoning","provider":"xai","max_tokens":200000},
+              "small": {"model":"grok-4-1-fast-non-reasoning","provider":"xai","max_tokens":200000}
+            }
+          }
+          EOF
+
+      - name: Run prompt
+        run: |
+          crush run -p "Read the contents of the file .llm/prompts/review.md and follow the instructions." --yolo
+          test -f review.md || (echo "review file not found" && exit 1)
+          test -f review-results.json || (echo "review results file not found" && exit 1)
+          jq '.containsCriticalIssues' review-results.json | grep -q 'false' || (echo "Critical issues found" && exit 1)
+
+      - name: Upload findings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: review
+          path: review.md

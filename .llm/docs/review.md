@@ -31,10 +31,10 @@ Minor code quality issues, style inconsistencies, or small improvements that wou
 
 ## Output
 
-### 1. Assessment Report
-Save your findings to `assessment.md` in the root directory of the project with this structure:
+### 1. Review Report
+Save your findings to `review.md` in the root directory of the project with this structure:
 ```
-# Codebase Assessment
+# Codebase Review
 
 ## Summary
 Brief overview of findings organized by severity count.
@@ -58,8 +58,8 @@ For each issue include:
 
 If no issues are found, save the file with "No issues found".
 
-### 2. Assessment Results JSON
-Save a file named `assessment-results.json` in the root directory of the project with the following structure:
+### 2. Review Results JSON
+Save a file named `review-results.json` in the root directory of the project with the following structure:
 ```json
 {
   "containsCriticalIssues": true
