@@ -35,6 +35,7 @@ type Options struct {
 	MaxRedirects     int               // Maximum number of redirects to follow
 	UserAgent        string            // User-Agent header to send with HTTP requests
 	MaxBytes         int64             // Maximum allowed download size in bytes (0 = unlimited)
+	ProgressInterval time.Duration     // Interval between progress updates
 	AllowInsecureTLS bool              // Allow TLS 1.0/1.1 (insecure)
 	Headers          map[string]string // Custom HTTP headers to send
 }
@@ -145,7 +146,7 @@ func Download(ctx context.Context, tracker *cleanup.Tracker, opts Options) (*Res
 			}
 		}()
 
-		result, err := downloadWithProgress(ctx, tempFile, bodyReader, resp.ContentLength, finalOutput, opts.Quiet, opts.HashAlgorithm, opts.ExpectedHash, opts.MaxBytes)
+		result, err := downloadWithProgress(ctx, tempFile, bodyReader, resp.ContentLength, finalOutput, opts.Quiet, opts.HashAlgorithm, opts.ExpectedHash, opts.MaxBytes, opts.ProgressInterval)
 		if err := tempFile.Close(); err != nil {
 			return nil, fmt.Errorf("error closing temp file: %w", err)
 		}
@@ -172,7 +173,7 @@ func Download(ctx context.Context, tracker *cleanup.Tracker, opts Options) (*Res
 	var writer io.Writer
 	if finalOutput == "-" {
 		writer = os.Stdout
-		result, err := downloadWithProgress(ctx, writer, bodyReader, resp.ContentLength, finalOutput, opts.Quiet, opts.HashAlgorithm, opts.ExpectedHash, opts.MaxBytes)
+		result, err := downloadWithProgress(ctx, writer, bodyReader, resp.ContentLength, finalOutput, opts.Quiet, opts.HashAlgorithm, opts.ExpectedHash, opts.MaxBytes, opts.ProgressInterval)
 		if result != nil {
 			result.OutputFile = finalOutput
 		}
@@ -187,7 +188,7 @@ func Download(ctx context.Context, tracker *cleanup.Tracker, opts Options) (*Res
 	if tracker != nil {
 		tracker.Register(finalOutput)
 	}
-	result, err := downloadWithProgress(ctx, file, bodyReader, resp.ContentLength, finalOutput, opts.Quiet, opts.HashAlgorithm, opts.ExpectedHash, opts.MaxBytes)
+	result, err := downloadWithProgress(ctx, file, bodyReader, resp.ContentLength, finalOutput, opts.Quiet, opts.HashAlgorithm, opts.ExpectedHash, opts.MaxBytes, opts.ProgressInterval)
 	if result != nil {
 		result.OutputFile = finalOutput
 	}
@@ -258,9 +259,12 @@ func newHashFromAlgorithm(algo string) (hash.Hash, string, error) {
 }
 
 // downloadWithProgress reads from reader in chunks and writes to writer, showing real-time progress
-// throttled to update every 500ms, with optional hash verification
-func downloadWithProgress(ctx context.Context, writer io.Writer, reader io.Reader, total int64, outName string, quiet bool, hashAlgorithm string, expectedHash string, maxBytes int64) (*Result, error) {
-	updateInterval := 500 * time.Millisecond
+// throttled to update every progressInterval, with optional hash verification
+func downloadWithProgress(ctx context.Context, writer io.Writer, reader io.Reader, total int64, outName string, quiet bool, hashAlgorithm string, expectedHash string, maxBytes int64, progressInterval time.Duration) (*Result, error) {
+	updateInterval := progressInterval
+	if updateInterval <= 0 {
+		updateInterval = 500 * time.Millisecond
+	}
 	lastUpdate := time.Now()
 	var downloaded int64
 	buf := make([]byte, 4096)

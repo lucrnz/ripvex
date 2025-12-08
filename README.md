@@ -10,7 +10,7 @@ This project is a work in progress, even though the developer makes the best eff
 
 ## Features
 
-- **Download with Progress**: Real-time progress bar showing percentage and human-readable bytes (e.g., "1.2 MB / 5.0 GB"), updated every 500ms to prevent output spam.
+- **Download with Progress**: Real-time progress bar showing percentage and human-readable bytes (e.g., "1.2 MB / 5.0 GB"), with configurable update intervals to prevent output spam.
 - **Hash Verification**: Optional hash check against the downloaded file using SHA-256 or SHA-512—exits with code 1 on mismatch for easy CI integration. Hash values must be prefixed with the algorithm (e.g., `sha256:xxxxx...` or `sha512:xxxxx...`). When outputting to stdout (`--output -`) with hash verification, the file is stored in a temporary location, verified, and only written to stdout if the hash matches.
 - **Archive Extraction**: Extract downloaded archives automatically. Supports zip, tar, tar.gz, tar.bz2, tar.xz, and tar.zstd formats.
 - **Magic Byte Detection**: Archive format detection uses file magic bytes, not extensions, for reliable format identification.
@@ -49,6 +49,7 @@ Run `ripvex --help` for full options.
 | `--download-max-time` | `-m` | Maximum time for the download operation. Supports human-readable formats (e.g., `"1h"`, `"2d"`, `"1w"`). | `1h` |
 | `--max-redirs` | | Maximum number of redirects to follow. | `30` |
 | `--max-bytes` | `-M` | Maximum bytes to download (supports `k/K/KB/KiB`, `m/M/MB/MiB`, `g/G/GB/GiB`). | `4GiB` |
+| `--progress-interval` | | Interval between progress updates (supports human-readable formats like `"500ms"`, `"1s"`, `"2s"`). | `500ms` |
 | `--allow-insecure-tls` | | Allow insecure TLS versions (1.0/1.1) with known vulnerabilities. | `false` |
 
 #### Archive Extractor

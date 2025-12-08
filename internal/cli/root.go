@@ -22,29 +22,30 @@ import (
 )
 
 var (
-	urlStr             string
-	output             string
-	quiet              bool
-	expectedHash       string
-	extractArchive     bool
-	removeArchive      bool
-	chdir              string
-	chdirCreate        bool
-	stripComponents    int
-	connectTimeoutStr  string
-	downloadMaxTimeStr string
-	maxRedirects       int
-	userAgent          string
-	maxBytesStr        string
-	extractMaxBytesStr string
-	extractTimeoutStr  string
-	allowInsecureTLS   bool
-	headers            []string
-	auth               string
-	authBearer         string
-	authBasicUser      string
-	authBasicPass      string
-	authBasic          string
+	urlStr              string
+	output              string
+	quiet               bool
+	expectedHash        string
+	extractArchive      bool
+	removeArchive       bool
+	chdir               string
+	chdirCreate         bool
+	stripComponents     int
+	connectTimeoutStr   string
+	downloadMaxTimeStr  string
+	progressIntervalStr string
+	maxRedirects        int
+	userAgent           string
+	maxBytesStr         string
+	extractMaxBytesStr  string
+	extractTimeoutStr   string
+	allowInsecureTLS    bool
+	headers             []string
+	auth                string
+	authBearer          string
+	authBasicUser       string
+	authBasicPass       string
+	authBasic           string
 )
 
 // trackerKeyType is a private type for context key to store the cleanup tracker
@@ -83,6 +84,7 @@ func init() {
 	rootCmd.Flags().StringVarP(&maxBytesStr, "max-bytes", "M", "4GiB", "Maximum bytes to download (e.g., \"4GiB\", \"512MB\")")
 	rootCmd.Flags().StringVar(&extractMaxBytesStr, "extract-max-bytes", "8GiB", "Maximum total bytes to extract from archive (e.g., \"8GiB\")")
 	rootCmd.Flags().StringVar(&extractTimeoutStr, "extract-timeout", "30m", "Maximum time for archive extraction. Supports human-readable formats like \"30m\", \"1h\", \"2d\")")
+	rootCmd.Flags().StringVar(&progressIntervalStr, "progress-interval", "500ms", "Interval between progress updates (supports human-readable formats like \"500ms\", \"1s\", \"2s\")")
 	rootCmd.Flags().BoolVar(&allowInsecureTLS, "allow-insecure-tls", false, "Allow insecure TLS versions (1.0/1.1) with known vulnerabilities")
 	rootCmd.Flags().StringArrayVar(&headers, "header", []string{}, "Custom header in \"Key: Value\" format. Can be specified multiple times.")
 	rootCmd.Flags().StringVarP(&auth, "auth", "A", "", "Set Authorization header to the provided value")
@@ -213,6 +215,14 @@ func run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid --extract-timeout value: %w", err)
 	}
 
+	progressInterval, err := util.ParseDuration(progressIntervalStr)
+	if err != nil {
+		return fmt.Errorf("invalid --progress-interval value: %w", err)
+	}
+	if progressInterval <= 0 {
+		return fmt.Errorf("--progress-interval must be greater than 0, got %s", progressIntervalStr)
+	}
+
 	hashAlgo, hashDigest, err := parseExpectedHash(expectedHash)
 	if err != nil {
 		return err
@@ -297,6 +307,7 @@ func run(cmd *cobra.Command, args []string) error {
 		MaxBytes:         maxBytes,
 		AllowInsecureTLS: allowInsecureTLS,
 		Headers:          headersMap,
+		ProgressInterval: progressInterval,
 	}
 
 	result, err := downloader.Download(ctx, tracker, opts)
