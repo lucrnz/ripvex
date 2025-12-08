@@ -134,8 +134,14 @@ jobs:
       - name: Create manifest list and push
         working-directory: /tmp/digests
         run: |
+          if [ "${{ needs.prepare.outputs.version_prefix }}" = "dev" ]; then
+            EXTRA_TAG="-t ghcr.io/${{ github.repository }}:latest-dev"
+          else
+            EXTRA_TAG="-t ghcr.io/${{ github.repository }}:latest"
+          fi
           docker buildx imagetools create \
             -t ghcr.io/${{ github.repository }}:${{ needs.prepare.outputs.version }} \
+            $EXTRA_TAG \
             $(printf 'ghcr.io/${{ github.repository }}@sha256:%s ' *)
 
       - name: Inspect image
