@@ -9,7 +9,7 @@ set -e
 
 PYENV_URL="https://github.com/pyenv/pyenv/archive/refs/tags/v2.6.15.tar.gz"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RIPVEX_BIN="$SCRIPT_DIR/build/ripvex"
+RIPVEX_BIN="$SCRIPT_DIR/../build/ripvex"
 
 echo "=== Testing Symlink Strip-Components Fix ==="
 echo "Pyenv URL: $PYENV_URL"
