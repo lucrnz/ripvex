@@ -138,7 +138,7 @@ func extractZipFile(ctx context.Context, tracker *cleanup.Tracker, f *zip.File, 
 		tracker.Register(destPath)
 	}
 
-	written, err := io.CopyN(outFile, rc, fileSize)
+	written, err := copyWithContext(ctx, outFile, rc, fileSize)
 	if err == io.EOF {
 		err = nil // CopyN returns EOF when source has fewer bytes than limit
 	}
