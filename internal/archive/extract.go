@@ -151,14 +151,10 @@ func extractTar(ctx context.Context, tracker *cleanup.Tracker, r io.Reader, opts
 			}
 
 		case tar.TypeSymlink:
-			// Apply strip-components to relative symlink targets
+			// Do NOT apply strip-components to symlink targets.
+			// Symlink targets are relative to the symlink's filesystem location,
+			// not relative to the archive root structure.
 			linkname := header.Linkname
-			if !filepath.IsAbs(linkname) {
-				linkname = util.StripPathComponents(linkname, opts.StripComponents)
-				if linkname == "" {
-					continue // Skip symlinks with invalid targets after stripping
-				}
-			}
 
 			// Validate symlink target doesn't escape
 			targetPath := filepath.Join(filepath.Dir(destPath), linkname)

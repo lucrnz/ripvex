@@ -78,14 +78,10 @@ func extractZipFile(ctx context.Context, tracker *cleanup.Tracker, f *zip.File, 
 			return fmt.Errorf("symlink target too long (limit %d bytes)", maxSymlinkTarget)
 		}
 
-		// Apply strip-components to relative symlink targets
+		// Do NOT apply strip-components to symlink targets.
+		// Symlink targets are relative to the symlink's filesystem location,
+		// not relative to the archive root structure.
 		linkname := string(linkTarget)
-		if !filepath.IsAbs(linkname) {
-			linkname = util.StripPathComponents(linkname, opts.StripComponents)
-			if linkname == "" {
-				return nil // Skip symlinks with invalid targets after stripping
-			}
-		}
 
 		// Validate symlink target doesn't escape
 		targetPath := filepath.Join(filepath.Dir(destPath), linkname)

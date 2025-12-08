@@ -91,7 +91,9 @@ Hash algorithms defined in a registry pattern (supportedHashes map in internal/c
 - newHash: Constructor function
 
 **7. Strip Components**
-Like tar's --strip-components, the --extract-strip-components flag removes N leading path components during extraction. Applied to file paths, symlink targets, and hard link targets.
+The objective of this feature is to be exactly like GNU tar.
+
+Like GNU tar's --strip-components, the --extract-strip-components flag removes N leading path components during extraction. Applied to file paths and hard link targets. **Symlink targets are NOT modified** because they are relative to the symlink's destination location, not the archive root structure.
 
 **8. Cleanup Tracker**
 - `cleanup.Tracker` registers files as soon as they are created; downloader and archive extraction unregister them after success. `main` defers `tracker.Cleanup()` to remove temporary files on interrupt or failure.
