@@ -19,11 +19,12 @@ Analyze in this order:
 ## Scope
 - Analyze all `.go` files, `go.mod`, `go.sum`, and configuration files
 - Review any Dockerfiles, CI configs, or infrastructure definitions
-- Ignore the contents of the `.llm/docs` directory
 - Do not flag the Go version as an issue
 - Do not flag missing unit tests or E2E tests
 
 ## What to Look For
+
+Note: this list not exhaustive, you can find other kind of issues, feel free to.
 
 ### Security
 - Command injection via exec.Command with unsanitized input
@@ -117,16 +118,16 @@ Save findings to `review.md`:
 # Codebase Review
 
 ## Summary
-Brief overview: what the application does, total issues found by severity.
+Brief overview of the current state of the codebase, written like a senior engenieer that just finished reviewed the entire app as a PR
 
 | Severity | Count |
 |----------|-------|
-| Critical | X     |
-| High     | X     |
-| Medium   | X     |
-| Low      | X     |
+| 🚨 Critical | X     |
+| 🔴 High     | X     |
+| 🟠 Medium   | X     |
+| 🟡 Low      | X     |
 
-## Critical Issues
+## 🚨 Critical Issues
 
 ### [C-1] <Short descriptive title>
 **File:** `path/to/file.go:42`
@@ -149,15 +150,15 @@ Specific consequences if not addressed.
 ```
 ---
 
-## High Issues
+## 🔴 High Issues
 [Same format]
 
-## Medium Issues
+## 🟠 Medium Issues
 [Same format]
 
-## Low Issues
+## 🟡 Low Issues
 [Same format]
 
-## Notes
+## 📝Notes
 Any observations about the codebase that don't fit into issues but are worth mentioning.
 ```
