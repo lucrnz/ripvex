@@ -17,35 +17,41 @@ import (
 	"github.com/lucrnz/ripvex/internal/archive"
 	"github.com/lucrnz/ripvex/internal/cleanup"
 	"github.com/lucrnz/ripvex/internal/downloader"
+	"github.com/lucrnz/ripvex/internal/logging"
 	"github.com/lucrnz/ripvex/internal/util"
 	"github.com/lucrnz/ripvex/internal/version"
 )
 
 var (
-	urlStr              string
-	output              string
-	quiet               bool
-	expectedHash        string
-	extractArchive      bool
-	removeArchive       bool
-	chdir               string
-	chdirCreate         bool
-	stripComponents     int
-	connectTimeoutStr   string
-	downloadMaxTimeStr  string
-	progressIntervalStr string
-	maxRedirects        int
-	userAgent           string
-	maxBytesStr         string
-	extractMaxBytesStr  string
-	extractTimeoutStr   string
-	allowInsecureTLS    bool
-	headers             []string
-	auth                string
-	authBearer          string
-	authBasicUser       string
-	authBasicPass       string
-	authBasic           string
+	urlStr                    string
+	output                    string
+	quiet                     bool
+	expectedHash              string
+	extractArchive            bool
+	removeArchive             bool
+	chdir                     string
+	chdirCreate               bool
+	stripComponents           int
+	connectTimeoutStr         string
+	downloadMaxTimeStr        string
+	progressIntervalStr       string
+	logProgressStepUnknownStr string
+	logLevel                  string
+	logFormat                 string
+	logProgressStep           int
+	logProgressStepUnknown    int64
+	maxRedirects              int
+	userAgent                 string
+	maxBytesStr               string
+	extractMaxBytesStr        string
+	extractTimeoutStr         string
+	allowInsecureTLS          bool
+	headers                   []string
+	auth                      string
+	authBearer                string
+	authBasicUser             string
+	authBasicPass             string
+	authBasic                 string
 )
 
 // trackerKeyType is a private type for context key to store the cleanup tracker
@@ -85,6 +91,10 @@ func init() {
 	rootCmd.Flags().StringVar(&extractMaxBytesStr, "extract-max-bytes", "8GiB", "Maximum total bytes to extract from archive (e.g., \"8GiB\")")
 	rootCmd.Flags().StringVar(&extractTimeoutStr, "extract-timeout", "30m", "Maximum time for archive extraction. Supports human-readable formats like \"30m\", \"1h\", \"2d\")")
 	rootCmd.Flags().StringVar(&progressIntervalStr, "progress-interval", "500ms", "Interval between progress updates (supports human-readable formats like \"500ms\", \"1s\", \"2s\")")
+	rootCmd.Flags().StringVar(&logProgressStepUnknownStr, "log-progress-step-unknown", "25MB", "Byte interval for progress logs when size is unknown (supports human-readable formats like \"25MB\", \"50MiB\", \"100k\")")
+	rootCmd.Flags().StringVar(&logLevel, "log-level", "info", "Log level: debug, info, warn, error")
+	rootCmd.Flags().StringVar(&logFormat, "log-format", "text", "Log format: text or json")
+	rootCmd.Flags().IntVar(&logProgressStep, "log-progress-step", 5, "Percent interval for progress milestone logs (1-50)")
 	rootCmd.Flags().BoolVar(&allowInsecureTLS, "allow-insecure-tls", false, "Allow insecure TLS versions (1.0/1.1) with known vulnerabilities")
 	rootCmd.Flags().StringArrayVar(&headers, "header", []string{}, "Custom header in \"Key: Value\" format. Can be specified multiple times.")
 	rootCmd.Flags().StringVarP(&auth, "auth", "A", "", "Set Authorization header to the provided value")
@@ -223,6 +233,14 @@ func run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--progress-interval must be greater than 0, got %s", progressIntervalStr)
 	}
 
+	logProgressStepUnknown, err = util.ParseByteSize(logProgressStepUnknownStr)
+	if err != nil {
+		return fmt.Errorf("invalid --log-progress-step-unknown value: %w", err)
+	}
+	if logProgressStepUnknown <= 0 {
+		return fmt.Errorf("--log-progress-step-unknown must be greater than 0, got %s", logProgressStepUnknownStr)
+	}
+
 	hashAlgo, hashDigest, err := parseExpectedHash(expectedHash)
 	if err != nil {
 		return err
@@ -237,6 +255,22 @@ func run(cmd *cobra.Command, args []string) error {
 	if stripComponents < 0 {
 		return fmt.Errorf("--extract-strip-components must be non-negative, got %d", stripComponents)
 	}
+
+	if logProgressStep <= 0 || logProgressStep > 50 {
+		return fmt.Errorf("--log-progress-step must be between 1 and 50, got %d", logProgressStep)
+	}
+
+	// Quiet overrides logging verbosity and progress output
+	if quiet {
+		logLevel = "error"
+	}
+
+	logger, err := logging.New(logLevel, logFormat)
+	if err != nil {
+		return fmt.Errorf("invalid logging configuration: %w", err)
+	}
+	cleanup.SetLogger(logger)
+	ctx = logging.WithContext(ctx, logger)
 
 	// Parse and validate authorization flags
 	headersMap := make(map[string]string)
@@ -294,20 +328,23 @@ func run(cmd *cobra.Command, args []string) error {
 
 	// Perform download
 	opts := downloader.Options{
-		URL:              urlStr,
-		Output:           output,
-		OutputExplicit:   outputExplicit,
-		Quiet:            quiet,
-		HashAlgorithm:    hashAlgo,
-		ExpectedHash:     hashDigest,
-		ConnectTimeout:   connectTimeout,
-		MaxTime:          maxTime,
-		MaxRedirects:     maxRedirects,
-		UserAgent:        userAgent,
-		MaxBytes:         maxBytes,
-		AllowInsecureTLS: allowInsecureTLS,
-		Headers:          headersMap,
-		ProgressInterval: progressInterval,
+		URL:                    urlStr,
+		Output:                 output,
+		OutputExplicit:         outputExplicit,
+		Quiet:                  quiet,
+		HashAlgorithm:          hashAlgo,
+		ExpectedHash:           hashDigest,
+		ConnectTimeout:         connectTimeout,
+		MaxTime:                maxTime,
+		MaxRedirects:           maxRedirects,
+		UserAgent:              userAgent,
+		MaxBytes:               maxBytes,
+		AllowInsecureTLS:       allowInsecureTLS,
+		Headers:                headersMap,
+		ProgressInterval:       progressInterval,
+		LogFormat:              logFormat,
+		LogProgressStep:        logProgressStep,
+		LogProgressStepUnknown: logProgressStepUnknown,
 	}
 
 	result, err := downloader.Download(ctx, tracker, opts)
@@ -326,9 +363,7 @@ func run(cmd *cobra.Command, args []string) error {
 
 	// Extract archive if requested
 	if extractArchive {
-		if !quiet {
-			fmt.Fprintf(os.Stderr, "Detecting archive type...\n")
-		}
+		logger.Info("archive_detect_start")
 
 		archiveType, err := archive.Detect(finalOutputFile)
 		if err != nil {
@@ -339,10 +374,8 @@ func run(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("unknown or unsupported archive format")
 		}
 
-		if !quiet {
-			fmt.Fprintf(os.Stderr, "Detected archive type: %s\n", archiveType)
-			fmt.Fprintf(os.Stderr, "Extracting...\n")
-		}
+		logger.Info("archive_detected", "type", archiveType)
+		logger.Info("extraction_start")
 
 		// Get list of files before extraction to identify extracted files later
 		filesBeforeExtraction := tracker.GetAll()
@@ -363,9 +396,7 @@ func run(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("error extracting archive: %w", err)
 		}
 
-		if !quiet {
-			fmt.Fprintf(os.Stderr, "✅ Extraction complete\n")
-		}
+		logger.Info("extraction_complete")
 
 		// Get list of files after extraction
 		filesAfterExtraction := tracker.GetAll()
@@ -390,9 +421,9 @@ func run(cmd *cobra.Command, args []string) error {
 		// Handle archive file removal
 		if removeArchive {
 			if err := os.Remove(finalOutputFile); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to remove archive file: %v\n", err)
-			} else if !quiet {
-				fmt.Fprintf(os.Stderr, "Removed archive file: %s\n", finalOutputFile)
+				logger.Warn("archive_removal_failed", "file", finalOutputFile, "error", err)
+			} else {
+				logger.Info("archive_removed", "file", finalOutputFile)
 			}
 			// Unregister archive file since it was removed
 			tracker.Unregister(finalOutputFile)

@@ -1,10 +1,19 @@
 package cleanup
 
 import (
-	"fmt"
+	"log/slog"
 	"os"
 	"sync"
 )
+
+var logger = slog.Default()
+
+// SetLogger overrides the cleanup logger (useful for CLI configured logging).
+func SetLogger(l *slog.Logger) {
+	if l != nil {
+		logger = l
+	}
+}
 
 // Tracker tracks files that should be cleaned up on interrupt
 type Tracker struct {
@@ -63,7 +72,7 @@ func (t *Tracker) Cleanup() {
 	for _, path := range files {
 		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 			// Best effort cleanup - errors are non-critical
-			fmt.Fprintf(os.Stderr, "warning: failed to remove temp file %s: %v\n", path, err)
+			logger.Warn("cleanup_failed", "file", path, "error", err)
 		}
 	}
 }

@@ -49,7 +49,11 @@ Run `ripvex --help` for full options.
 | `--download-max-time` | `-m` | Maximum time for the download operation. Supports human-readable formats (e.g., `"1h"`, `"2d"`, `"1w"`). | `1h` |
 | `--max-redirs` | | Maximum number of redirects to follow. | `30` |
 | `--max-bytes` | `-M` | Maximum bytes to download (supports `k/K/KB/KiB`, `m/M/MB/MiB`, `g/G/GB/GiB`). | `4GiB` |
-| `--progress-interval` | | Interval between progress updates (supports human-readable formats like `"500ms"`, `"1s"`, `"2s"`). | `500ms` |
+| `--progress-interval` | | Interval between progress updates (supports human-readable formats like `"500ms"`, `"1s"`, `"2s"`). | `400ms` |
+| `--log-level` | | Log level: `debug`, `info`, `warn`, `error`. Quiet mode forces `error`. | `info` |
+| `--log-format` | | Log format: `text` or `json`. JSON mode disables the visual progress bar but keeps milestone logs. | `text` |
+| `--log-progress-step` | | Percent interval for milestone progress logs (1-50). | `5` |
+| `--log-progress-step-unknown` | | Byte interval for progress logs when size is unknown (supports human-readable sizes like `"25MB"`, `"50MiB"`, `"100k"`). | `25MB` |
 | `--allow-insecure-tls` | | Allow insecure TLS versions (1.0/1.1) with known vulnerabilities. | `false` |
 
 #### Archive Extractor

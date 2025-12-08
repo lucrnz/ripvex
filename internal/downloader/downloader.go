@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"hash"
 	"io"
+	"log/slog"
 	"mime"
 	"net"
 	"net/http"
@@ -19,25 +20,30 @@ import (
 	"time"
 
 	"github.com/lucrnz/ripvex/internal/cleanup"
+	"github.com/lucrnz/ripvex/internal/logging"
+	"github.com/lucrnz/ripvex/internal/progress"
 	"github.com/lucrnz/ripvex/internal/util"
 )
 
 // Options configures the download behavior
 type Options struct {
-	URL              string
-	Output           string // Output file path, or "-" for stdout
-	OutputExplicit   bool   // Whether --output was explicitly set by user
-	Quiet            bool
-	HashAlgorithm    string            // Hash algorithm name (e.g., "sha256", "sha512")
-	ExpectedHash     string            // Hex string to verify against (digest only, without algorithm prefix)
-	ConnectTimeout   time.Duration     // Maximum time for connection establishment
-	MaxTime          time.Duration     // Maximum total time for the entire operation (0 = unlimited)
-	MaxRedirects     int               // Maximum number of redirects to follow
-	UserAgent        string            // User-Agent header to send with HTTP requests
-	MaxBytes         int64             // Maximum allowed download size in bytes (0 = unlimited)
-	ProgressInterval time.Duration     // Interval between progress updates
-	AllowInsecureTLS bool              // Allow TLS 1.0/1.1 (insecure)
-	Headers          map[string]string // Custom HTTP headers to send
+	URL                    string
+	Output                 string // Output file path, or "-" for stdout
+	OutputExplicit         bool   // Whether --output was explicitly set by user
+	Quiet                  bool
+	HashAlgorithm          string            // Hash algorithm name (e.g., "sha256", "sha512")
+	ExpectedHash           string            // Hex string to verify against (digest only, without algorithm prefix)
+	ConnectTimeout         time.Duration     // Maximum time for connection establishment
+	MaxTime                time.Duration     // Maximum total time for the entire operation (0 = unlimited)
+	MaxRedirects           int               // Maximum number of redirects to follow
+	UserAgent              string            // User-Agent header to send with HTTP requests
+	MaxBytes               int64             // Maximum allowed download size in bytes (0 = unlimited)
+	ProgressInterval       time.Duration     // Interval between progress updates
+	LogFormat              string            // text or json
+	LogProgressStep        int               // Percentage step for milestone logs
+	LogProgressStepUnknown int64             // Byte step for milestone logs when size unknown
+	AllowInsecureTLS       bool              // Allow TLS 1.0/1.1 (insecure)
+	Headers                map[string]string // Custom HTTP headers to send
 }
 
 // Result contains the outcome of a download
@@ -53,6 +59,8 @@ func Download(ctx context.Context, tracker *cleanup.Tracker, opts Options) (*Res
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
+
+	logger := logging.FromContext(ctx)
 
 	tlsConfig := &tls.Config{
 		MinVersion: tls.VersionTLS12, // Secure default
@@ -146,7 +154,7 @@ func Download(ctx context.Context, tracker *cleanup.Tracker, opts Options) (*Res
 			}
 		}()
 
-		result, err := downloadWithProgress(ctx, tempFile, bodyReader, resp.ContentLength, finalOutput, opts.Quiet, opts.HashAlgorithm, opts.ExpectedHash, opts.MaxBytes, opts.ProgressInterval)
+		result, err := downloadWithProgress(ctx, tempFile, bodyReader, resp.ContentLength, finalOutput, opts.Quiet, opts.HashAlgorithm, opts.ExpectedHash, opts.MaxBytes, opts.ProgressInterval, logger, opts.LogFormat, opts.LogProgressStep, opts.LogProgressStepUnknown)
 		if err := tempFile.Close(); err != nil {
 			return nil, fmt.Errorf("error closing temp file: %w", err)
 		}
@@ -173,7 +181,7 @@ func Download(ctx context.Context, tracker *cleanup.Tracker, opts Options) (*Res
 	var writer io.Writer
 	if finalOutput == "-" {
 		writer = os.Stdout
-		result, err := downloadWithProgress(ctx, writer, bodyReader, resp.ContentLength, finalOutput, opts.Quiet, opts.HashAlgorithm, opts.ExpectedHash, opts.MaxBytes, opts.ProgressInterval)
+		result, err := downloadWithProgress(ctx, writer, bodyReader, resp.ContentLength, finalOutput, opts.Quiet, opts.HashAlgorithm, opts.ExpectedHash, opts.MaxBytes, opts.ProgressInterval, logger, opts.LogFormat, opts.LogProgressStep, opts.LogProgressStepUnknown)
 		if result != nil {
 			result.OutputFile = finalOutput
 		}
@@ -188,7 +196,7 @@ func Download(ctx context.Context, tracker *cleanup.Tracker, opts Options) (*Res
 	if tracker != nil {
 		tracker.Register(finalOutput)
 	}
-	result, err := downloadWithProgress(ctx, file, bodyReader, resp.ContentLength, finalOutput, opts.Quiet, opts.HashAlgorithm, opts.ExpectedHash, opts.MaxBytes, opts.ProgressInterval)
+	result, err := downloadWithProgress(ctx, file, bodyReader, resp.ContentLength, finalOutput, opts.Quiet, opts.HashAlgorithm, opts.ExpectedHash, opts.MaxBytes, opts.ProgressInterval, logger, opts.LogFormat, opts.LogProgressStep, opts.LogProgressStepUnknown)
 	if result != nil {
 		result.OutputFile = finalOutput
 	}
@@ -260,12 +268,15 @@ func newHashFromAlgorithm(algo string) (hash.Hash, string, error) {
 
 // downloadWithProgress reads from reader in chunks and writes to writer, showing real-time progress
 // throttled to update every progressInterval, with optional hash verification
-func downloadWithProgress(ctx context.Context, writer io.Writer, reader io.Reader, total int64, outName string, quiet bool, hashAlgorithm string, expectedHash string, maxBytes int64, progressInterval time.Duration) (*Result, error) {
+func downloadWithProgress(ctx context.Context, writer io.Writer, reader io.Reader, total int64, outName string, quiet bool, hashAlgorithm string, expectedHash string, maxBytes int64, progressInterval time.Duration, logger *slog.Logger, logFormat string, logProgressStep int, logProgressStepUnknown int64) (*Result, error) {
 	updateInterval := progressInterval
 	if updateInterval <= 0 {
 		updateInterval = 500 * time.Millisecond
 	}
-	lastUpdate := time.Now()
+	bar := progress.New(total, logProgressStep, logProgressStepUnknown, updateInterval, logger, quiet)
+	bar.Start()
+	defer bar.Stop()
+
 	var downloaded int64
 	buf := make([]byte, 4096)
 
@@ -307,22 +318,12 @@ func downloadWithProgress(ctx context.Context, writer io.Writer, reader io.Reade
 			if maxBytes > 0 && downloaded > maxBytes {
 				if outName != "-" {
 					if err := os.Remove(outName); err != nil && !os.IsNotExist(err) && !quiet {
-						fmt.Fprintf(os.Stderr, "\nWarning: failed to remove oversized file %s: %v\n", outName, err)
+						logger.Warn("remove_oversized_failed", "file", outName, "error", err)
 					}
 				}
 				return nil, fmt.Errorf("download exceeded maximum size limit of %s", util.HumanReadableBytes(maxBytes))
 			}
-			if !quiet {
-				if time.Since(lastUpdate) >= updateInterval {
-					if total <= 0 {
-						fmt.Fprintf(os.Stderr, "\rDownloaded: %s...", util.HumanReadableBytes(downloaded))
-					} else {
-						percent := float64(downloaded) / float64(total) * 100
-						fmt.Fprintf(os.Stderr, "\rProgress: %.1f%% (%s/%s)", percent, util.HumanReadableBytes(downloaded), util.HumanReadableBytes(total))
-					}
-					lastUpdate = time.Now()
-				}
-			}
+			bar.Update(int64(n))
 		}
 
 		// THEN check for errors
@@ -339,9 +340,7 @@ func downloadWithProgress(ctx context.Context, writer io.Writer, reader io.Reade
 		// Delete incomplete file if writing to a file (not stdout)
 		if outName != "-" {
 			if err := os.Remove(outName); err != nil && !os.IsNotExist(err) {
-				if !quiet {
-					fmt.Fprintf(os.Stderr, "\nWarning: failed to remove incomplete file %s: %v\n", outName, err)
-				}
+				logger.Warn("remove_incomplete_failed", "file", outName, "error", err)
 			}
 		}
 		return nil, fmt.Errorf("incomplete download: received %s, expected %s (Content-Length)", util.HumanReadableBytes(downloaded), util.HumanReadableBytes(total))
@@ -361,33 +360,23 @@ func downloadWithProgress(ctx context.Context, writer io.Writer, reader io.Reade
 			// Delete corrupted file if writing to a file (not stdout)
 			if outName != "-" {
 				if err := os.Remove(outName); err != nil && !os.IsNotExist(err) {
-					if !quiet {
-						fmt.Fprintf(os.Stderr, "\nWarning: failed to remove corrupted file %s: %v\n", outName, err)
-					}
+					logger.Warn("remove_corrupted_failed", "file", outName, "error", err)
 				}
 			}
-			if !quiet {
-				fmt.Fprintf(os.Stderr, "\n❌ error: invalid %s sum\n", hashName)
-			}
+			logger.Error("hash_mismatch", "algorithm", hashName, "expected", expectedHash, "computed", computed)
 			return result, fmt.Errorf("hash mismatch: expected %s, got %s", expectedHash, computed)
 		}
-		if !quiet {
-			fmt.Fprintf(os.Stderr, "\n✅ %s sum hash matches\n", hashName)
-		}
+		logger.Info("hash_verified", "algorithm", hashName)
 	}
 
-	// Final message
-	if !quiet {
-		sizeStr := util.HumanReadableBytes(downloaded)
-		if total != -1 {
-			sizeStr = util.HumanReadableBytes(total)
-		}
-		if outName == "-" {
-			fmt.Fprintf(os.Stderr, "\nDownloaded %s\n", sizeStr)
-		} else {
-			fmt.Fprintf(os.Stderr, "\nDownloaded %s to %s\n", sizeStr, outName)
-		}
-	}
+	logger.Info("download_complete",
+		"downloaded_bytes", downloaded,
+		"downloaded", util.HumanReadableBytes(downloaded),
+		"total_bytes", total,
+		"total", util.HumanReadableBytes(total),
+		"output", outName,
+		"hash_matched", result.HashMatched,
+	)
 
 	return result, nil
 }
