@@ -16,6 +16,7 @@ This project is a work in progress, even though the developer makes the best eff
 - **Magic Byte Detection**: Archive format detection uses file magic bytes, not extensions, for reliable format identification.
 - **Zip Slip Protection**: Production-ready security against path traversal attacks in archives.
 - **Redirect Handling**: Automatically follows HTTP redirects up to a configurable limit (default: 30).
+- **HTTP Safety**: Rejects plain HTTP unless a hash is provided or `--allow-unsafe-http` is set.
 - **Quiet Mode**: Suppress all non-error output for scripts or logs.
 - **Flexible Output**: Write to file (default: URL basename) or stdout (`--output -`).
 - **Clean Piping**: All status messages (progress, hash verification, final messages) are written to stderr, keeping stdout clean for data piping.
@@ -55,6 +56,7 @@ Run `ripvex --help` for full options.
 | `--log-progress-step` | | Percent interval for milestone progress logs (1-50). | `5` |
 | `--log-progress-step-unknown` | | Byte interval for progress logs when size is unknown (supports human-readable sizes like `"25MB"`, `"50MiB"`, `"100k"`). | `25MB` |
 | `--allow-insecure-tls` | | Allow insecure TLS versions (1.0/1.1) with known vulnerabilities. | `false` |
+| `--allow-unsafe-http` | | Allow plain HTTP without hash verification (unsafe). By default, plain HTTP requires `--hash`. | `false` |
 
 #### Archive Extractor
 

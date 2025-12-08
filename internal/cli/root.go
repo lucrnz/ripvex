@@ -46,6 +46,7 @@ var (
 	extractMaxBytesStr        string
 	extractTimeoutStr         string
 	allowInsecureTLS          bool
+	allowUnsafeHTTP           bool
 	headers                   []string
 	auth                      string
 	authBearer                string
@@ -96,6 +97,7 @@ func init() {
 	rootCmd.Flags().StringVar(&logFormat, "log-format", "text", "Log format: text or json")
 	rootCmd.Flags().IntVar(&logProgressStep, "log-progress-step", 5, "Percent interval for progress milestone logs (1-50)")
 	rootCmd.Flags().BoolVar(&allowInsecureTLS, "allow-insecure-tls", false, "Allow insecure TLS versions (1.0/1.1) with known vulnerabilities")
+	rootCmd.Flags().BoolVar(&allowUnsafeHTTP, "allow-unsafe-http", false, "Allow plain HTTP downloads without hash verification (unsafe)")
 	rootCmd.Flags().StringArrayVar(&headers, "header", []string{}, "Custom header in \"Key: Value\" format. Can be specified multiple times.")
 	rootCmd.Flags().StringVarP(&auth, "auth", "A", "", "Set Authorization header to the provided value")
 	rootCmd.Flags().StringVarP(&authBearer, "auth-bearer", "B", "", "Set Authorization header to \"Bearer {value}\"")
@@ -244,6 +246,10 @@ func run(cmd *cobra.Command, args []string) error {
 	hashAlgo, hashDigest, err := parseExpectedHash(expectedHash)
 	if err != nil {
 		return err
+	}
+
+	if parsedURL.Scheme == "http" && hashDigest == "" && !allowUnsafeHTTP {
+		return fmt.Errorf("plain http downloads require --hash or --allow-unsafe-http")
 	}
 
 	// Validate max-redirs
