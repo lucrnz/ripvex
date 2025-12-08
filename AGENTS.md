@@ -119,6 +119,30 @@ Like GNU tar's --strip-components, the --extract-strip-components flag removes N
 - TLS compatibility: `--allow-insecure-tls` enables TLS 1.0/1.1 for legacy servers.
 - Size/time defaults: `--max-bytes` defaults to 4GiB; `--extract-max-bytes` defaults to 8GiB; `--connect-timeout` defaults to 300s; `--download-max-time` defaults to 1h; `--extract-timeout` defaults to 30m.
 
+### New Flag Guidelines
+
+When adding new CLI flags, follow these guidelines:
+
+**Byte Size Flags**
+- Must accept human-readable input via `util.ParseByteSize`
+- Supported units: `b/B`, `k/K/kb/KiB`, `m/M/mb/MiB`, `g/G/gb/GiB`
+- Default values should use human-readable format (e.g., `"4GiB"` not `4294967296`)
+- Implementation uses `go-humanize` library
+- Examples: `"4GiB"`, `"512MB"`, `"100k"`
+
+**Duration Flags**
+- Must accept human-readable input via `util.ParseDuration`
+- Supported units: `h`, `m`, `s`, `ms`, `us`, `ns`, `d` (days), `w` (weeks)
+- Default values should use human-readable format (e.g., `"1h"` not `3600`)
+- Implementation uses `go-str2duration/v2` library
+- Examples: `"1h"`, `"30m"`, `"2d"`, `"1w2d3h"`
+
+**General Guidelines**
+- Flag descriptions should document supported input formats in the help text
+- Use consistent naming conventions (e.g., `--extract-*` prefix for extraction-related flags)
+- When introducing new CLI flags, update the appropriate flags table in README.md
+- Add usage examples demonstrating the new functionality
+
 ### Version Injection
 Version info is injected at build time via ldflags in the Makefile:
 - CommitHash: Git commit (or "unknown")
@@ -129,6 +153,7 @@ Version info is injected at build time via ldflags in the Makefile:
 ### Dependencies
 - github.com/spf13/cobra: CLI framework
 - github.com/dustin/go-humanize: Human-readable byte sizes
+- github.com/xhit/go-str2duration/v2: Human-readable duration parsing
 - github.com/klauspost/compress: Zstd compression support
 - github.com/ulikunitz/xz: XZ compression support
 - Indirect: github.com/inconshreveable/mousetrap, github.com/spf13/pflag (via cobra)
@@ -151,8 +176,3 @@ After implementing a new feature or code change, create a documentation file:
 - **Content**: Document what was changed and the technical reasoning
 - **Skip**: Do not document if the only rationale is "user requested" - focus on technical decisions and context
 - This directory serves as a knowledge base for the project's development history
-
-### README Updates
-When introducing new CLI flags:
-- Update the appropriate flags table in README.md
-- Add usage examples demonstrating the new functionality
