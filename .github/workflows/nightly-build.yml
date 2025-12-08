@@ -1,0 +1,95 @@
+name: Nightly Build
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+  actions: write
+
+jobs:
+  check-latest-dev:
+    name: Check latest-dev tag digest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compare latest-dev tag to current commit tag
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          OWNER="${{ github.repository_owner }}"
+          REPO="${GITHUB_REPOSITORY#*/}"
+          SHORT_SHA="${GITHUB_SHA::7}"
+
+          api_get() {
+            curl -fsSL \
+              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "$1"
+          }
+
+          owner_info=$(api_get "https://api.github.com/users/${OWNER}")
+          owner_type=$(echo "$owner_info" | jq -r '.type')
+
+          if [ "$owner_type" = "Organization" ]; then
+            versions_url="https://api.github.com/orgs/${OWNER}/packages/container/${REPO}/versions?per_page=100"
+          else
+            versions_url="https://api.github.com/users/${OWNER}/packages/container/${REPO}/versions?per_page=100"
+          fi
+
+          versions=$(api_get "$versions_url")
+
+          latest_dev=$(echo "$versions" | jq 'map(select(.metadata.container.tags[]? == "latest-dev")) | first')
+          if [ "$latest_dev" = "null" ] || [ -z "$latest_dev" ]; then
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "match=false" >> "$GITHUB_OUTPUT"
+            echo "reason=missing_latest_dev" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          latest_digest=$(echo "$latest_dev" | jq -r '.metadata.container.digest // empty')
+
+          match_version=$(echo "$versions" | jq --arg sha "$SHORT_SHA" 'map(select([.metadata.container.tags[]?] | any(. | contains($sha)))) | first')
+          if [ "$match_version" = "null" ] || [ -z "$match_version" ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            echo "match=false" >> "$GITHUB_OUTPUT"
+            echo "reason=no_tag_for_commit" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          match_digest=$(echo "$match_version" | jq -r '.metadata.container.digest // empty')
+
+          echo "found=true" >> "$GITHUB_OUTPUT"
+          echo "latest_digest=${latest_digest}" >> "$GITHUB_OUTPUT"
+          echo "matching_digest=${match_digest}" >> "$GITHUB_OUTPUT"
+
+          if [ -n "$latest_digest" ] && [ -n "$match_digest" ] && [ "$latest_digest" = "$match_digest" ]; then
+            echo "match=true" >> "$GITHUB_OUTPUT"
+            echo "reason=digest_matches" >> "$GITHUB_OUTPUT"
+          else
+            echo "match=false" >> "$GITHUB_OUTPUT"
+            echo "reason=digest_mismatch" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Trigger build-and-release workflow
+        if: steps.check.outputs.match != 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'build-and-release.yml',
+              ref: context.ref,
+              inputs: {
+                create_release: 'true',
+                pre_release_build: 'true'
+              }
+            })
+
