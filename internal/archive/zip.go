@@ -26,6 +26,10 @@ func extractZip(ctx context.Context, tracker *cleanup.Tracker, path string, opts
 	if err != nil {
 		return fmt.Errorf("failed to get absolute path: %w", err)
 	}
+	destDir, err = filepath.EvalSymlinks(destDir)
+	if err != nil {
+		return fmt.Errorf("failed to resolve destination path: %w", err)
+	}
 
 	var extracted int64
 
@@ -54,6 +58,9 @@ func extractZipFile(ctx context.Context, tracker *cleanup.Tracker, f *zip.File, 
 	destPath := filepath.Join(destDir, name)
 	if !util.IsPathSafe(destPath, destDir) {
 		return fmt.Errorf("zip slip detected: %s", name)
+	}
+	if _, err := util.ResolvePathWithinBase(destPath, destDir); err != nil {
+		return fmt.Errorf("zip path contains unsafe symlink for %s: %w", name, err)
 	}
 
 	// Handle directories
@@ -85,8 +92,8 @@ func extractZipFile(ctx context.Context, tracker *cleanup.Tracker, f *zip.File, 
 
 		// Validate symlink target doesn't escape
 		targetPath := filepath.Join(filepath.Dir(destPath), linkname)
-		if !util.IsPathSafe(targetPath, destDir) {
-			return fmt.Errorf("symlink escape detected: %s -> %s", name, linkname)
+		if _, err := util.ResolvePathWithinBase(targetPath, destDir); err != nil {
+			return fmt.Errorf("symlink escape detected: %s -> %s: %w", name, linkname, err)
 		}
 
 		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {

@@ -55,6 +55,10 @@ func extractTar(ctx context.Context, tracker *cleanup.Tracker, r io.Reader, opts
 	if err != nil {
 		return fmt.Errorf("failed to get absolute path: %w", err)
 	}
+	destDir, err = filepath.EvalSymlinks(destDir)
+	if err != nil {
+		return fmt.Errorf("failed to resolve destination path: %w", err)
+	}
 
 	tr := tar.NewReader(r)
 	type pendingLink struct {
@@ -88,6 +92,9 @@ func extractTar(ctx context.Context, tracker *cleanup.Tracker, r io.Reader, opts
 		destPath := filepath.Join(destDir, name)
 		if !util.IsPathSafe(destPath, destDir) {
 			return fmt.Errorf("tar slip detected: %s", name)
+		}
+		if _, err := util.ResolvePathWithinBase(destPath, destDir); err != nil {
+			return fmt.Errorf("tar path contains unsafe symlink for %s: %w", name, err)
 		}
 
 		switch header.Typeflag {
@@ -156,10 +163,10 @@ func extractTar(ctx context.Context, tracker *cleanup.Tracker, r io.Reader, opts
 			// not relative to the archive root structure.
 			linkname := header.Linkname
 
-			// Validate symlink target doesn't escape
+			// Validate symlink target doesn't escape (including ancestor symlinks)
 			targetPath := filepath.Join(filepath.Dir(destPath), linkname)
-			if !util.IsPathSafe(targetPath, destDir) {
-				return fmt.Errorf("symlink escape detected: %s -> %s", name, linkname)
+			if _, err := util.ResolvePathWithinBase(targetPath, destDir); err != nil {
+				return fmt.Errorf("symlink escape detected: %s -> %s: %w", name, linkname, err)
 			}
 
 			// Remove existing symlink if present
@@ -184,10 +191,10 @@ func extractTar(ctx context.Context, tracker *cleanup.Tracker, r io.Reader, opts
 				continue // Skip hard links with invalid targets after stripping
 			}
 
-			// Hard links - validate target exists within destDir
+			// Hard links - validate target exists within destDir (including symlink walk)
 			linkTarget := filepath.Join(destDir, linkname)
-			if !util.IsPathSafe(linkTarget, destDir) {
-				return fmt.Errorf("hard link escape detected: %s -> %s", name, linkname)
+			if _, err := util.ResolvePathWithinBase(linkTarget, destDir); err != nil {
+				return fmt.Errorf("hard link escape detected: %s -> %s: %w", name, linkname, err)
 			}
 
 			if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
@@ -216,8 +223,11 @@ func extractTar(ctx context.Context, tracker *cleanup.Tracker, r io.Reader, opts
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		if !util.IsPathSafe(pl.destPath, destDir) || !util.IsPathSafe(pl.linkTarget, destDir) {
-			return fmt.Errorf("hard link escape detected (deferred): %s -> %s", pl.destPath, pl.linkTarget)
+		if _, err := util.ResolvePathWithinBase(pl.destPath, destDir); err != nil {
+			return fmt.Errorf("hard link escape detected (deferred dest): %w", err)
+		}
+		if _, err := util.ResolvePathWithinBase(pl.linkTarget, destDir); err != nil {
+			return fmt.Errorf("hard link escape detected (deferred target): %w", err)
 		}
 		if err := os.MkdirAll(filepath.Dir(pl.destPath), 0755); err != nil {
 			return fmt.Errorf("failed to create parent directory for hard link: %w", err)
