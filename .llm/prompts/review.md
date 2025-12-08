@@ -151,13 +151,15 @@ Specific consequences if not addressed.
 ---
 
 ## 🔴 High Issues
-[Same format]
+[Same format - Omit this section if none are found]
 
 ## 🟠 Medium Issues
-[Same format]
+[Same format - Omit this section if none are found]
 
 ## 🟡 Low Issues
-[Same format]
+[Same format - Omit this section if none are found]
+
+[If none are found (of any category) write a brief congratualitions message starting with this emoji: 🎉]
 
 ## 📝Notes
 Any observations about the codebase that don't fit into issues but are worth mentioning.
