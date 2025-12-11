@@ -1,11 +1,9 @@
 name: AI Review
-
 on:
   workflow_dispatch:
   push:
     branches:
       - main
-
 jobs:
   throttle-check:
     runs-on: ubuntu-latest
@@ -22,28 +20,27 @@ jobs:
             echo "should_run=true" >> $GITHUB_OUTPUT
             exit 0
           fi
-          
+
           # Query last successful run
           LAST_RUN=$(gh api repos/${{ github.repository }}/actions/workflows/ai-review.yml/runs \
             --jq '.workflow_runs | map(select(.conclusion == "success")) | .[0].created_at // empty')
-          
+
           if [ -z "$LAST_RUN" ]; then
             echo "should_run=true" >> $GITHUB_OUTPUT
             exit 0
           fi
-          
+
           # Compare timestamps (1 hour = 3600 seconds)
           LAST_EPOCH=$(date -d "$LAST_RUN" +%s)
           NOW_EPOCH=$(date +%s)
           DIFF=$((NOW_EPOCH - LAST_EPOCH))
-          
+
           if [ $DIFF -gt 3600 ]; then
             echo "should_run=true" >> $GITHUB_OUTPUT
           else
             echo "should_run=false" >> $GITHUB_OUTPUT
             echo "Skipping: last successful run was $((DIFF / 60)) minutes ago"
           fi
-
   review:
     needs: throttle-check
     if: needs.throttle-check.outputs.should_run == 'true'
@@ -51,34 +48,29 @@ jobs:
     timeout-minutes: 10
     env:
       XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
-      CRUSH_URL: "https://github.com/charmbracelet/crush/releases/download/v0.21.0/crush_0.21.0_Linux_x86_64.tar.gz"
+      CRUSH_VERSION: "0.21.0"
       CRUSH_HASH_SHA256: "efa1642e4b3f8d49381e709cdb72eb98d710ccb9626019f395fa741144af7e31"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: 'stable'
-
       - name: Install crush
         run: |
           mkdir -p $HOME/bin
+          URL_PRE="https://github.com/charmbracelet/crush/releases/download"
+          URL=$(printf '%s/v%s/crush_%s_Linux_x86_64.tar.gz' \
+            "$URL_PRE" "$CRUSH_VERSION" "$CRUSH_VERSION")
           DOWNLOAD_DIR=$(mktemp -d)
           pushd $DOWNLOAD_DIR
-          curl -fL -o crush.tgz "${{ env.CRUSH_URL }}"
+          curl -fL -o crush.tgz "$URL"
           echo "${{ env.CRUSH_HASH_SHA256 }}  crush.tgz" | sha256sum -c
           tar --strip-components=1 -xzf crush.tgz
           rm -f crush.tgz
           mv crush $HOME/bin/crush
           popd
           rm -rf $DOWNLOAD_DIR
-
       - name: Update crush providers
         run: |
           $HOME/bin/crush update-providers
-
       - name: Setup crush config
         run: |
           mkdir -p $HOME/.local/share/crush
@@ -86,17 +78,24 @@ jobs:
           cat > $HOME/.local/share/crush/crush.json << 'EOF'
           {
             "models": {
-              "large": {"model":"grok-4-1-fast-reasoning","provider":"xai","max_tokens":200000},
-              "small": {"model":"grok-4-1-fast-non-reasoning","provider":"xai","max_tokens":200000}
+              "large": {
+                "model":"grok-4-1-fast-reasoning",
+                "provider":"xai",
+                "max_tokens":200000
+              },
+              "small": {
+                "model":"grok-4-1-fast-non-reasoning",
+                "provider":"xai",
+                "max_tokens":200000
+              }
             }
           }
           EOF
-
       - name: Run prompt
         run: |
-          $HOME/bin/crush run "Read the contents of the file .llm/prompts/review.md and follow the instructions."
+          $HOME/bin/crush run \
+            "Read the contents of the file .llm/prompts/review.md and follow the instructions."
           test -f review.md || (echo "review file not found" && exit 1)
-
       - name: Display review summary
         if: always()
         run: |
