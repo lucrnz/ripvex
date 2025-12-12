@@ -92,6 +92,7 @@ jobs:
           build-args: |
             VERSION_PREFIX=${{ needs.prepare.outputs.version_prefix }}
             VERSION_DATE=${{ needs.prepare.outputs.version_date }}
+            COMMIT_HASH=${{ github.sha }}
           outputs: type=image,name=ghcr.io/${{ github.repository }},push-by-digest=true,name-canonical=true,push=true
           cache-from: type=gha
           cache-to: type=gha,mode=max

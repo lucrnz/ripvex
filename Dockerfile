@@ -30,6 +30,8 @@ RUN apt-get update && \
   rm -rf /var/lib/apt/lists/*
 
 FROM scratch
+ARG COMMIT_HASH=unknown
+LABEL org.opencontainers.image.revision="${COMMIT_HASH}"
 COPY --from=builder /app/build/ripvex /ripvex
 COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 

@@ -15,7 +15,7 @@ jobs:
     name: Check latest-dev tag digest
     runs-on: ubuntu-latest
     steps:
-      - name: Compare latest-dev tag to current commit tag
+      - name: Compare latest-dev tag to current commit
         id: check
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -24,56 +24,44 @@ jobs:
 
           OWNER="${{ github.repository_owner }}"
           REPO="${GITHUB_REPOSITORY#*/}"
-          SHORT_SHA="${GITHUB_SHA::7}"
+          CURRENT_SHA="${GITHUB_SHA}"
 
-          api_get() {
-            curl -fsSL \
-              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-              -H "Accept: application/vnd.github+json" \
-              "$1"
-          }
-
-          owner_info=$(api_get "https://api.github.com/users/${OWNER}")
-          owner_type=$(echo "$owner_info" | jq -r '.type')
-
-          if [ "$owner_type" = "Organization" ]; then
-            versions_url="https://api.github.com/orgs/${OWNER}/packages/container/${REPO}/versions?per_page=100"
-          else
-            versions_url="https://api.github.com/users/${OWNER}/packages/container/${REPO}/versions?per_page=100"
-          fi
-
-          versions=$(api_get "$versions_url")
-
-          latest_dev=$(echo "$versions" | jq 'map(select(.metadata.container.tags[]? == "latest-dev")) | first')
-          if [ "$latest_dev" = "null" ] || [ -z "$latest_dev" ]; then
+          # Pull latest-dev image metadata
+          if ! docker pull ghcr.io/${OWNER}/${REPO}:latest-dev 2>/dev/null; then
             echo "found=false" >> "$GITHUB_OUTPUT"
             echo "match=false" >> "$GITHUB_OUTPUT"
             echo "reason=missing_latest_dev" >> "$GITHUB_OUTPUT"
+            echo "DEBUG: latest-dev tag not found or not pullable" >> $GITHUB_STEP_SUMMARY
             exit 0
           fi
 
-          latest_digest=$(echo "$latest_dev" | jq -r '.metadata.container.digest // empty')
+          # Extract commit SHA from image label
+          LATEST_COMMIT=$(docker inspect ghcr.io/${OWNER}/${REPO}:latest-dev | \
+            jq -r '.[0].Config.Labels["org.opencontainers.image.revision"] // empty')
 
-          match_version=$(echo "$versions" | jq --arg sha "$SHORT_SHA" 'map(select([.metadata.container.tags[]?] | any(. | contains($sha)))) | first')
-          if [ "$match_version" = "null" ] || [ -z "$match_version" ]; then
+          if [ -z "$LATEST_COMMIT" ]; then
             echo "found=true" >> "$GITHUB_OUTPUT"
             echo "match=false" >> "$GITHUB_OUTPUT"
-            echo "reason=no_tag_for_commit" >> "$GITHUB_OUTPUT"
+            echo "reason=missing_revision_label" >> "$GITHUB_OUTPUT"
+            echo "DEBUG: latest-dev exists but has no revision label" >> $GITHUB_STEP_SUMMARY
             exit 0
           fi
 
-          match_digest=$(echo "$match_version" | jq -r '.metadata.container.digest // empty')
+          # Debug output
+          echo "DEBUG: Current commit: ${CURRENT_SHA}" >> $GITHUB_STEP_SUMMARY
+          echo "DEBUG: Latest-dev commit: ${LATEST_COMMIT}" >> $GITHUB_STEP_SUMMARY
 
-          echo "found=true" >> "$GITHUB_OUTPUT"
-          echo "latest_digest=${latest_digest}" >> "$GITHUB_OUTPUT"
-          echo "matching_digest=${match_digest}" >> "$GITHUB_OUTPUT"
-
-          if [ -n "$latest_digest" ] && [ -n "$match_digest" ] && [ "$latest_digest" = "$match_digest" ]; then
+          # Compare commits
+          if [ "$LATEST_COMMIT" = "$CURRENT_SHA" ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
             echo "match=true" >> "$GITHUB_OUTPUT"
-            echo "reason=digest_matches" >> "$GITHUB_OUTPUT"
+            echo "reason=commit_matches" >> "$GITHUB_OUTPUT"
+            echo "✅ Commits match - no build needed" >> $GITHUB_STEP_SUMMARY
           else
+            echo "found=true" >> "$GITHUB_OUTPUT"
             echo "match=false" >> "$GITHUB_OUTPUT"
-            echo "reason=digest_mismatch" >> "$GITHUB_OUTPUT"
+            echo "reason=commit_mismatch" >> "$GITHUB_OUTPUT"
+            echo "🔄 Commits differ - build needed" >> $GITHUB_STEP_SUMMARY
           fi
 
       - name: Trigger build-and-release workflow
