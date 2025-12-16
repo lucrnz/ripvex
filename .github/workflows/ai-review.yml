@@ -48,8 +48,8 @@ jobs:
     timeout-minutes: 10
     env:
       XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
-      CRUSH_VERSION: "0.21.0"
-      CRUSH_HASH_SHA256: "efa1642e4b3f8d49381e709cdb72eb98d710ccb9626019f395fa741144af7e31"
+      CRUSH_VERSION: "0.25.0"
+      CRUSH_HASH_SHA256: "cb487e7874229bff44eef0289d647533614ef437b07fbb114f5acb2233ce464d"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -93,14 +93,11 @@ jobs:
           EOF
       - name: Run prompt
         run: |
-          $HOME/bin/crush run \
-            "Read the contents of the file .llm/prompts/review.md and follow the instructions."
-          test -f review.md || (echo "review file not found" && exit 1)
+          cat .llm/prompts/review.md | $HOME/bin/crush run > review.md
       - name: Display review summary
-        if: always()
         run: |
-          if [ -f review.md ]; then
+          if [ -f review.md ] && [ -s review.md ]; then
             cat review.md >> $GITHUB_STEP_SUMMARY
           else
-            echo "⚠️ review.md file not found" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ review.md file not found or is empty" >> $GITHUB_STEP_SUMMARY
           fi

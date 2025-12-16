@@ -112,8 +112,6 @@ Minor improvements with no immediate risk:
 ## Output
 
 ### 1. Review Report
-Save findings to `review.md`:
-
 ```
 # Codebase Review
 
