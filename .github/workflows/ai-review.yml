@@ -48,8 +48,8 @@ jobs:
     timeout-minutes: 10
     env:
       XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
-      CRUSH_VERSION: "0.25.0"
-      CRUSH_HASH_SHA256: "cb487e7874229bff44eef0289d647533614ef437b07fbb114f5acb2233ce464d"
+      CRUSH_VERSION: "0.29.1"
+      CRUSH_HASH_SHA256: "f99dc624c6e4b9147c8045badba6cea1f428bd4d641a8227829e08cfb0a6999c"
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
