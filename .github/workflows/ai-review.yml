@@ -93,7 +93,7 @@ jobs:
           EOF
       - name: Run prompt
         run: |
-          cat .llm/prompts/review.md | $HOME/bin/crush run > review.md
+          cat .llm/commands/find-issues.md | $HOME/bin/crush run > review.md
       - name: Display review summary
         run: |
           if [ -f review.md ] && [ -s review.md ]; then
